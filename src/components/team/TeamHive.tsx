@@ -8,50 +8,50 @@ import { TeamMember } from "@/types/team";
 const teamMembers: TeamMember[] = [
   {
     id: 1,
-    name: "John Doe",
-    position: "Co-Founder & CEO",
+    name: "Alex Rivera",
+    position: "CEO & Founder",
     image: "/team/placeholder-1.jpg",
     bio: "Passionate about education technology and helping students succeed."
   },
   {
     id: 2,
-    name: "Jane Smith",
-    position: "Co-Founder & CTO",
+    name: "Jordan Kim",
+    position: "CTO",
     image: "/team/placeholder-2.jpg",
     bio: "Full-stack developer with a love for creating intuitive user experiences."
   },
   {
     id: 3,
-    name: "Mike Johnson",
+    name: "Casey Thompson",
     position: "Lead Developer",
     image: "/team/placeholder-3.jpg",
     bio: "Frontend specialist focused on performance and accessibility."
   },
   {
     id: 4,
-    name: "Sarah Wilson",
+    name: "Morgan Davis",
     position: "UX Designer",
     image: "/team/placeholder-4.jpg",
     bio: "Design enthusiast creating beautiful and functional interfaces."
   },
   {
     id: 5,
-    name: "Alex Brown",
-    position: "Content Manager",
+    name: "Riley Chen",
+    position: "Content Director",
     image: "/team/placeholder-5.jpg",
     bio: "AP curriculum expert ensuring quality educational content."
   },
   {
     id: 6,
-    name: "Emily Davis",
+    name: "Taylor Brooks",
     position: "Marketing Lead",
     image: "/team/placeholder-6.jpg",
     bio: "Spreading the word about FiveHive to help more students."
   },
   {
     id: 7,
-    name: "Chris Taylor",
-    position: "Backend Developer",
+    name: "Avery Singh",
+    position: "Backend Engineer",
     image: "/team/placeholder-7.jpg",
     bio: "Infrastructure expert keeping everything running smoothly."
   }
@@ -81,28 +81,31 @@ export default function TeamHive() {
         <div className="relative ml-[76.5px]">
           <TeamMemberHex 
             member={{
-              ...teamMembers[0],
-              name: "David Lee",
+              id: 8,
+              name: "Phoenix Martinez",
               position: "QA Engineer",
-              id: 8
+              image: "/team/placeholder-8.jpg",
+              bio: "Quality assurance specialist ensuring perfect user experiences."
             }} 
             className="inline-block" 
           />
           <TeamMemberHex 
             member={{
-              ...teamMembers[1],
-              name: "Lisa Chen",
+              id: 9,
+              name: "Sage Williams",
               position: "Product Manager",
-              id: 9
+              image: "/team/placeholder-9.jpg",
+              bio: "Strategic product leader driving innovation and growth."
             }} 
             className="inline-block" 
           />
           <TeamMemberHex 
             member={{
-              ...teamMembers[2],
-              name: "Ryan Kim",
+              id: 10,
+              name: "River Johnson",
               position: "DevOps Engineer",
-              id: 10
+              image: "/team/placeholder-10.jpg",
+              bio: "Infrastructure architect ensuring scalable and reliable systems."
             }} 
             className="inline-block" 
           />

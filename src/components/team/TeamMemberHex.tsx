@@ -26,22 +26,25 @@ export default function TeamMemberHex({ member, className }: TeamMemberHexProps)
       <div className="relative w-[150px] h-[150px]">
         {/* Front face - Picture */}
         <div
-          className="absolute inset-0 w-full h-full bg-gradient-to-br from-yellow-400/20 to-amber-500/30 shadow-lg hover:shadow-xl transition-shadow duration-300"
+          className="absolute inset-0 w-full h-full bg-white shadow-lg hover:shadow-xl transition-shadow duration-300"
           style={{
             clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)',
             backfaceVisibility: 'hidden'
           }}
         >
           <div
-            className="w-full h-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center overflow-hidden relative"
+            className="w-full h-full bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center overflow-hidden relative"
             style={{
               clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)'
             }}
           >
-            {/* Picture placeholder - this will be replaced with actual images */}
-            <div className="w-full h-full bg-gradient-to-br from-gray-300 to-gray-400 dark:from-gray-600 dark:to-gray-700 flex items-center justify-center">
-              <div className="text-gray-600 dark:text-gray-300 text-6xl">
+            {/* Picture placeholder */}
+            <div className="flex flex-col items-center justify-center">
+              <div className="text-gray-500 dark:text-gray-400 text-5xl mb-2">
                 👤
+              </div>
+              <div className="text-xs text-gray-400 dark:text-gray-500 text-center">
+                Photo
               </div>
             </div>
             
@@ -60,7 +63,7 @@ export default function TeamMemberHex({ member, className }: TeamMemberHexProps)
 
         {/* Back face - Name and Position */}
         <div
-          className="absolute inset-0 w-full h-full bg-gradient-to-br from-yellow-500/95 to-amber-600/95 shadow-lg"
+          className="absolute inset-0 w-full h-full bg-gradient-to-br from-yellow-500 to-amber-600 shadow-lg"
           style={{
             clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)',
             backfaceVisibility: 'hidden',
@@ -73,10 +76,10 @@ export default function TeamMemberHex({ member, className }: TeamMemberHexProps)
               clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)'
             }}
           >
-            <h3 className="font-bold text-base mb-2 leading-tight drop-shadow-sm">
+            <h3 className="font-bold text-sm mb-1 leading-tight drop-shadow-sm">
               {member.name}
             </h3>
-            <p className="text-sm opacity-90 leading-tight drop-shadow-sm">
+            <p className="text-xs opacity-90 leading-tight drop-shadow-sm">
               {member.position}
             </p>
           </div>

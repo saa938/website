@@ -186,11 +186,13 @@ function toPixel(q: number, r: number, size: number, originX: number, originY: n
   return { x, y };
 }
 
-function shuffleArray<T>(arr: T[]) {
-  const a = arr.slice();
+function shuffleArray<T>(arr: (T | undefined)[]): T[] {
+  const a = arr.slice() as T[];
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
+    const tmp = a[i]!;
+    a[i] = a[j]!;
+    a[j] = tmp;
   }
   return a;
 }
@@ -315,9 +317,12 @@ export default function TeamHive() {
     let rightmostIdx = -1;
     let minX = Infinity;
     let maxX = -Infinity;
+
     for (let i = 0; i < assignedWithPx.length; i++) {
       const item = assignedWithPx[i];
+      if (!item) continue; // <- check for undefined
       if (!item.a.member) continue;
+
       if (item.px.x < minX) {
         minX = item.px.x;
         leftmostIdx = i;
@@ -339,13 +344,16 @@ export default function TeamHive() {
     // if there was only one top candidate available, place both into it is not allowed; just place one.
     if (!newTopForLeft) return;
 
-    // apply the move for leftmost
-    assigned[leftmostIdx].hex = { ...newTopForLeft, dist: axialDistance(newTopForLeft) };
-
-    // apply the move for rightmost if we have an available distinct spot and it's not the same index as leftmost
-    if (newTopForRight && rightmostIdx !== leftmostIdx) {
-      assigned[rightmostIdx].hex = { ...newTopForRight, dist: axialDistance(newTopForRight) };
+    function setAssignedHex(idx: number, hexValue: typeof newTopForLeft | undefined) {
+      if (idx >= 0 && idx < assigned.length && hexValue) {
+        const item = assigned[idx];
+        if (item) item.hex = { ...hexValue, dist: axialDistance(hexValue) };
+      }
     }
+
+    setAssignedHex(leftmostIdx, newTopForLeft);
+    if (newTopForRight && rightmostIdx !== leftmostIdx) setAssignedHex(rightmostIdx, newTopForRight);
+
   })();
 
   // Calculate center hex position - it should be at the center of the canvas

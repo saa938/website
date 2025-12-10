@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { TeamMember } from "@/types/team";
+import type { TeamMember } from "@/types/team";
 
 const DEFAULT_IMAGE = "/team/default-profile.png";
 
@@ -13,7 +13,7 @@ const PROFILE_PICTURE_SIZE = 80; // Change this value to adjust image size (100 
 const HEX_POINTS = "50,10 84.64,30 84.64,70 50,90 15.36,70 15.36,30";
 
 // Format text to 25 characters per line, ensuring words don't break across lines
-function formatTextToLines(text: string, maxCharsPerLine: number = 25): string[] {
+function formatTextToLines(text: string, maxCharsPerLine = 25): string[] {
   const words = text.split(/\s+/);
   const lines: string[] = [];
   let currentLine = "";

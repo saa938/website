@@ -2,7 +2,7 @@
 
 import React, { useMemo, useRef, useEffect, useState } from "react";
 import TeamMemberHex from "./TeamMemberHex";
-import { TeamMember } from "@/types/team";
+import type { TeamMember } from "@/types/team";
 
 // --- Configuration: Adjust hexagon size here (in pixels) ---
 const HEXAGON_SIZE = 250; // Change this value to adjust hexagon size
@@ -249,16 +249,13 @@ export default function TeamHive() {
   // Prepare pools for filling inwards to outwards to avoid inner gaps
   const overflowLeads = teamLeads.slice(6); // any extra leads beyond 6
 
-  // We'll create a single pool in order: overflow leads -> subTeamLeads -> members
-  const pool = [...overflowLeads, ...subTeamLeads, ...members];
-
   // Shuffle members only part to randomize outer placement but keep leads together.
-  // Use useMemo with empty deps to ensure shuffle only happens once on mount
+  // Use useMemo so the shuffle runs when the underlying pools change.
   const shuffledMembersPool = useMemo(() => {
-    const mems = members.slice(); // Use members directly
+    const mems = members.slice();
     const shuffled = shuffleArray(mems);
     return [...overflowLeads, ...subTeamLeads, ...shuffled];
-  }, []); // Empty deps - only shuffle once on mount
+  }, [overflowLeads, subTeamLeads, members]);
 
   // Create a working copy that we can mutate with shift()
   const workingPool = [...shuffledMembersPool];
@@ -339,7 +336,7 @@ export default function TeamHive() {
     // assign them to the first available top-row candidates (avoid swapping into the same slot)
     // prefer to place leftmost into left-most top candidate, rightmost into next top candidate (or same if only one)
     const newTopForLeft = topRowCandidates.shift();
-    let newTopForRight = topRowCandidates.shift();
+    const newTopForRight = topRowCandidates.shift();
 
     // if there was only one top candidate available, place both into it is not allowed; just place one.
     if (!newTopForLeft) return;
@@ -357,7 +354,7 @@ export default function TeamHive() {
   })();
 
   // Calculate center hex position - it should be at the center of the canvas
-  const centerHexPx = toPixel(centerHex.q, centerHex.r, hexRadius, centerX, centerY);
+  // (variable removed because it's not used)
 
   return (
     <div 

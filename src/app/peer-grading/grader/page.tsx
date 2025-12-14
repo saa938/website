@@ -6,9 +6,9 @@ import {
   updateDoc,
   orderBy,
   query,
-  DocumentReference,
   deleteDoc,
-  DocumentData,
+} from "firebase/firestore";
+import type { DocumentReference, DocumentData } from "firebase/firestore";
 } from "firebase/firestore";
 import { useUser } from "@/components/hooks/UserContext";
 import { db } from "@/lib/firebase";

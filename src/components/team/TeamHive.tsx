@@ -375,8 +375,8 @@ export default function TeamHive() {
           const px = toPixel(q, r, hexRadius, centerX, centerY);
           const left = px.x - hexSize / 2;
           const top = px.y - hexSize / 2;
-          // gentle z-index so center is on top
-          const zIndex = 200 - a.hex.dist;
+          // z-index below navbar (navbar has z-40 = 40) so hexagons scroll behind it
+          const zIndex = 30 - a.hex.dist; // Values from 30 down, all below 40
           return (
             <div key={`${q},${r}`} style={{ position: "absolute", left, top, width: hexSize, height: hexSize, zIndex, display: "flex", alignItems: "center", justifyContent: "center" }}>
               {a.member ? <TeamMemberHex member={a.member} /> : null}

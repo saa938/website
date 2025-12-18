@@ -3,8 +3,12 @@ import Navbar from "@/components/global/navbar";
 import { buttonVariants } from "@/components/ui/button";
 import Footer from "@/components/global/footer";
 import FAQ from "@/components/landingPage/FAQ";
+import TeamHive from "@/components/team/TeamHive";
 import { cn } from "@/lib/utils";
 import { PencilRuler } from "lucide-react";
+
+// --- Configuration: Distance of FAQ section below navbar (in pixels) ---
+const FAQ_HEIGHT_FROM_NAVBAR = -2000; // Change this value to adjust FAQ section vertical position
 
 export default async function Home() {
   return (
@@ -14,8 +18,19 @@ export default async function Home() {
       <main className="flex min-h-[calc(100vh-120px)] flex-col overflow-x-hidden">
         <div className="mx-auto flex max-w-6xl flex-col px-6 pb-8 lg:px-8 ">
           <CallToAction />
+          <div className="mt-16">
+            <div className="text-center mb-12">
+              <h2 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl mb-4">
+                Meet Our Team
+              </h2>
+              <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+                The passionate individuals behind FiveHive, working together to create amazing AP resources for students.
+              </p>
+            </div>
+            <TeamHive />
+          </div>
           <div id="FAQ-section">
-            <h2 className="mb-2 mt-12 text-center text-5xl font-bold">FAQ</h2>
+            <h2 className="mb-2 text-center text-5xl font-bold">FAQ</h2>
             <Accordion
               type="single"
               collapsible

@@ -153,7 +153,7 @@ const members: TeamMember[] = [
   { id: 49, name: "irunwithscizors", position: "Lecture Sub-Team Member", image: getImagePath("irunwithscizors"), bio: "" },
   { id: 50, name: "dkim19375", position: "Survey Sub-Team Member", image: getImagePath("dkim19375"), bio: "" },
   { id: 51, name: "Sarah H.", position: "Survey, Data Analysis, FAQ Doc Sub-Team Member", image: getImagePath("Sarah H."), bio: "" },
-  { id: 52, name: "southwesternalexcorporation", position: "Lecture, Materials Sub-Team Member", image: getImagePath("southwesternalexcorporation"), bio: "" },
+  { id: 52, name: "SWalexcorporation", position: "Lecture, Materials Sub-Team Member", image: getImagePath("southwesternalexcorporation"), bio: "" },
   { id: 53, name: "Orin Overmiller", position: "Materials Sub-Team Member", image: getImagePath("Orin Overmiller"), bio: "" },
   { id: 54, name: "MG8mer", position: "Lecture Sub-Team Member", image: getImagePath("MG8mer"), bio: "" },
   { id: 55, name: "dlcdeon", position: "Survey, Data Analysis, FAQ Doc Sub-Team Member", image: getImagePath("dlcdeon"), bio: "" },
@@ -215,8 +215,8 @@ export default function TeamHive() {
         // Use the container's width, but calculate height based on content
         const width = containerRef.current.clientWidth || window.innerWidth;
         // Use a fixed large height to accommodate all hexagons
-        const height = Math.max(1400, window.innerHeight * 2);
-        setContainerDimensions({ width, height });
+        const height = containerRef.current.scrollHeight;
+        setContainerDimensions({ width, height});
       }
     };
 
@@ -254,104 +254,113 @@ export default function TeamHive() {
   const shuffledMembersPool = useMemo(() => {
     const mems = members.slice();
     const shuffled = shuffleArray(mems);
-    return [...overflowLeads, ...subTeamLeads, ...shuffled];
-  }, [overflowLeads, subTeamLeads, members]);
+    return [...overflowLeads, ...subTeamLeads, ...mems];
+  }, []); // Empty deps - only shuffle once on mount, not on every render
 
-  // Create a working copy that we can mutate with shift()
-  const workingPool = [...shuffledMembersPool];
+  // Memoize the entire assignment logic so it doesn't recalculate on dimension changes
+  // This prevents shuffling when window height/width changes
+  const assigned = useMemo(() => {
+    // Create a working copy that we can mutate with shift()
+    const workingPool = [...shuffledMembersPool];
 
-  // assigned array
-  const assigned: { hex: { q: number; r: number; dist: number }; member?: TeamMember; role?: string }[] = [];
+    // assigned array
+    const result: { hex: { q: number; r: number; dist: number }; member?: TeamMember; role?: string }[] = [];
 
-  // center
-  assigned.push({ hex: centerHex, member: centerLeader, role: "center" });
+    // center
+    result.push({ hex: centerHex, member: centerLeader, role: "center" });
 
-  // ring1 -> team leads (first 6). If fewer than 6, pull from subTeamLeads/members pool to fill.
-  ring1Hexes.forEach((hex, i) => {
-    const m = teamLeads[i] ?? workingPool.shift();
-    assigned.push({ hex, member: m, role: m ? (i < teamLeads.length ? "team-lead" : "sub-lead") : undefined });
-  });
+    // ring1 -> team leads (first 6). If fewer than 6, pull from subTeamLeads/members pool to fill.
+    ring1Hexes.forEach((hex, i) => {
+      const m = teamLeads[i] ?? workingPool.shift();
+      result.push({ hex, member: m, role: m ? (i < teamLeads.length ? "team-lead" : "sub-lead") : undefined });
+    });
 
-  // ring2 -> fill entirely from remaining pool (this includes overflow leads & all subTeamLeads first, then members)
-  ring2Hexes.forEach((hex) => {
-    const m = workingPool.shift();
-    assigned.push({ hex, member: m, role: m ? "sub-lead-or-member" : undefined });
-  });
+    // ring2 -> fill entirely from remaining pool (this includes overflow leads & all subTeamLeads first, then members)
+    ring2Hexes.forEach((hex) => {
+      const m = workingPool.shift();
+      result.push({ hex, member: m, role: m ? "sub-lead-or-member" : undefined });
+    });
 
-  // outer hexes -> remaining members
-  outerHexes.forEach((hex) => {
-    const m = workingPool.shift();
-    assigned.push({ hex, member: m, role: m ? "member" : undefined });
-  });
+    // outer hexes -> remaining members
+    outerHexes.forEach((hex) => {
+      const m = workingPool.shift();
+      result.push({ hex, member: m, role: m ? "member" : undefined });
+    });
 
-  // ---------------------------
-  // Small tweak: move leftmost and rightmost placed hexes to top row (r === -radius)
-  // This finds the assigned hex with minimum screen X and maximum screen X, and moves
-  // their hex coordinates onto available top-row positions (to avoid overlap).
-  // ---------------------------
-  (function moveExtremesToTopRow() {
-    // helper to compute pixel for an assigned hex
-    const pixelFor = (h: { q: number; r: number }) => toPixel(h.q, h.r, hexRadius, centerX, centerY);
+    // ---------------------------
+    // Small tweak: move leftmost and rightmost placed hexes to top row (r === -radius)
+    // This finds the assigned hex with minimum screen X and maximum screen X, and moves
+    // their hex coordinates onto available top-row positions (to avoid overlap).
+    // Use a fixed reference width (1400) to determine extremes, not dynamic centerX
+    // ---------------------------
+    (function moveExtremesToTopRow() {
+      // Use a fixed reference centerX for determining extremes to avoid position changes on resize
+      const referenceCenterX = 1400 / 2 + HORIZONTAL_OFFSET;
+      // helper to compute pixel for an assigned hex using reference position
+      const pixelFor = (h: { q: number; r: number }) => toPixel(h.q, h.r, hexRadius, referenceCenterX, OFFSET_BELOW_HEADER);
 
-    // find top-row hexes (r === -radius) that are not already occupied
-    const occupiedSet = new Set(assigned.map((a) => `${a.hex.q},${a.hex.r}`));
-    const topRowCandidates = allHexes
-      .filter((h) => h.r === -radius && !occupiedSet.has(`${h.q},${h.r}`))
-      .sort((a, b) => a.q - b.q); // choose left-to-right on top row
+      // find top-row hexes (r === -radius) that are not already occupied
+      const occupiedSet = new Set(result.map((a) => `${a.hex.q},${a.hex.r}`));
+      const topRowCandidates = allHexes
+        .filter((h) => h.r === -radius && !occupiedSet.has(`${h.q},${h.r}`))
+        .sort((a, b) => a.q - b.q); // choose left-to-right on top row
 
-    if (topRowCandidates.length === 0) return; // nothing to move to
+      if (topRowCandidates.length === 0) return; // nothing to move to
 
-    // compute assigned with actual pixel X
-    const assignedWithPx = assigned.map((a) => ({ a, px: pixelFor(a.hex) }));
+      // compute assigned with actual pixel X using reference position
+      const assignedWithPx = result.map((a) => ({ a, px: pixelFor(a.hex) }));
 
-    // skip elements with no member (empty cell) when choosing extremes
-    const occupiedAssigned = assignedWithPx.filter((x) => x.a.member);
+      // skip elements with no member (empty cell) when choosing extremes
+      const occupiedAssigned = assignedWithPx.filter((x) => x.a.member);
 
-    if (occupiedAssigned.length === 0) return;
+      if (occupiedAssigned.length === 0) return;
 
-    // find index (in 'assigned' array) of leftmost and rightmost placed members
-    let leftmostIdx = -1;
-    let rightmostIdx = -1;
-    let minX = Infinity;
-    let maxX = -Infinity;
+      // find index (in 'result' array) of leftmost and rightmost placed members
+      let leftmostIdx = -1;
+      let rightmostIdx = -1;
+      let minX = Infinity;
+      let maxX = -Infinity;
 
-    for (let i = 0; i < assignedWithPx.length; i++) {
-      const item = assignedWithPx[i];
-      if (!item) continue; // <- check for undefined
-      if (!item.a.member) continue;
+      for (let i = 0; i < assignedWithPx.length; i++) {
+        const item = assignedWithPx[i];
+        if (!item) continue; // <- check for undefined
+        if (!item.a.member) continue;
 
-      if (item.px.x < minX) {
-        minX = item.px.x;
-        leftmostIdx = i;
+        if (item.px.x < minX) {
+          minX = item.px.x;
+          leftmostIdx = i;
+        }
+        if (item.px.x > maxX) {
+          maxX = item.px.x;
+          rightmostIdx = i;
+        }
       }
-      if (item.px.x > maxX) {
-        maxX = item.px.x;
-        rightmostIdx = i;
+
+      // if no valid extremes, return
+      if (leftmostIdx === -1 || rightmostIdx === -1) return;
+
+      // assign them to the first available top-row candidates (avoid swapping into the same slot)
+      // prefer to place leftmost into left-most top candidate, rightmost into next top candidate (or same if only one)
+      const newTopForLeft = topRowCandidates.shift();
+      const newTopForRight = topRowCandidates.shift();
+
+      // if there was only one top candidate available, place both into it is not allowed; just place one.
+      if (!newTopForLeft) return;
+
+      function setAssignedHex(idx: number, hexValue: typeof newTopForLeft | undefined) {
+        if (idx >= 0 && idx < result.length && hexValue) {
+          const item = result[idx];
+          if (item) item.hex = { ...hexValue, dist: axialDistance(hexValue) };
+        }
       }
-    }
 
-    // if no valid extremes, return
-    if (leftmostIdx === -1 || rightmostIdx === -1) return;
+      setAssignedHex(leftmostIdx, newTopForLeft);
+      if (newTopForRight && rightmostIdx !== leftmostIdx) setAssignedHex(rightmostIdx, newTopForRight);
 
-    // assign them to the first available top-row candidates (avoid swapping into the same slot)
-    // prefer to place leftmost into left-most top candidate, rightmost into next top candidate (or same if only one)
-    const newTopForLeft = topRowCandidates.shift();
-    const newTopForRight = topRowCandidates.shift();
+    })();
 
-    // if there was only one top candidate available, place both into it is not allowed; just place one.
-    if (!newTopForLeft) return;
-
-    function setAssignedHex(idx: number, hexValue: typeof newTopForLeft | undefined) {
-      if (idx >= 0 && idx < assigned.length && hexValue) {
-        const item = assigned[idx];
-        if (item) item.hex = { ...hexValue, dist: axialDistance(hexValue) };
-      }
-    }
-
-    setAssignedHex(leftmostIdx, newTopForLeft);
-    if (newTopForRight && rightmostIdx !== leftmostIdx) setAssignedHex(rightmostIdx, newTopForRight);
-
-  })();
+    return result;
+  }, [shuffledMembersPool, centerHex, ring1Hexes, ring2Hexes, outerHexes, allHexes, hexRadius]);
 
   // Calculate center hex position - it should be at the center of the canvas
   // (variable removed because it's not used)

@@ -13,7 +13,7 @@ const PROFILE_PICTURE_SIZE = 80; // Change this value to adjust image size (100 
 const HEX_POINTS = "50,10 84.64,30 84.64,70 50,90 15.36,70 15.36,30";
 
 // Format text to 25 characters per line, ensuring words don't break across lines
-function formatTextToLines(text: string, maxCharsPerLine = 25): string[] {
+function formatTextToLines(text: string, maxCharsPerLine = 15): string[] {
   const words = text.split(/\s+/);
   const lines: string[] = [];
   let currentLine = "";
@@ -138,7 +138,7 @@ export default function TeamMemberHex({ member }: { member: TeamMember }) {
             backgroundColor: "#EF7A3D"
           }}
         >
-          <h3 className="font-bold text-sm text-center" style={{ maxWidth: "85%" }}>
+          <h3 className="font-bold text-sm text-center" style={{ maxWidth: "85%", fontSize: '7px', lineHeight: 1.1 }}>
             {nameLines.map((line, index) => (
               <span key={index}>
                 {line}
@@ -146,7 +146,7 @@ export default function TeamMemberHex({ member }: { member: TeamMember }) {
               </span>
             ))}
           </h3>
-          <p className="text-xs mt-1 text-center" style={{ maxWidth: "85%" }}>
+          <p className="text-xs mt-1 text-center" style={{ maxWidth: "85%", fontSize: '7px', lineHeight: 1.1}}>
             {positionLines.map((line, index) => (
               <span key={index}>
                 {line}

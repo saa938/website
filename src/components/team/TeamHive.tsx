@@ -4,14 +4,17 @@ import React, { useMemo, useRef, useEffect, useState } from "react";
 import TeamMemberHex from "./TeamMemberHex";
 import type { TeamMember } from "@/types/team";
 
+// --- Global scale factor for the entire hive ---
+const HIVE_SCALE = 0.5;
+
 // --- Configuration: Adjust hexagon size here (in pixels) ---
-const HEXAGON_SIZE = 250; // Change this value to adjust hexagon size
+const HEXAGON_SIZE = 250 * HIVE_SCALE; // Change this value to adjust hexagon size
 
 // --- Configuration: Distance below "Meet Our Team" header (in pixels) ---
-const OFFSET_BELOW_HEADER = 700; // Change this value to adjust vertical position
+const OFFSET_BELOW_HEADER = 700 * HIVE_SCALE; // Change this value to adjust vertical position
 
 // --- Configuration: Horizontal offset from center (in pixels) ---
-const HORIZONTAL_OFFSET = 0; // Change this value to adjust horizontal position (positive = right, negative = left)
+const HORIZONTAL_OFFSET = 0 * HIVE_SCALE; // Change this value to adjust horizontal position (positive = right, negative = left)
 
 // --- Image mapping: Maps team member names to their image files ---
 const IMAGE_MAP: Record<string, string> = {
@@ -206,7 +209,7 @@ export default function TeamHive() {
   
   // Use ref to get container dimensions
   const containerRef = useRef<HTMLDivElement>(null);
-  const [containerDimensions, setContainerDimensions] = useState({ width: 1400, height: 1400 });
+  const [containerDimensions, setContainerDimensions] = useState({ width: 1400 * HIVE_SCALE, height: 1400 * HIVE_SCALE});
   
   // Update container dimensions on mount and resize only (not on scroll)
   useEffect(() => {

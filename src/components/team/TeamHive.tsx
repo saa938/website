@@ -256,7 +256,6 @@ export default function TeamHive() {
   // Use useMemo so the shuffle runs when the underlying pools change.
   const shuffledMembersPool = useMemo(() => {
     const mems = members.slice();
-    const shuffled = shuffleArray(mems);
     return [...overflowLeads, ...subTeamLeads, ...mems];
   }, []); // Empty deps - only shuffle once on mount, not on every render
 

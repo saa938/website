@@ -7,9 +7,6 @@ import TeamHive from "@/components/team/TeamHive";
 import { cn } from "@/lib/utils";
 import { PencilRuler } from "lucide-react";
 
-// --- Configuration: Distance of FAQ section below navbar (in pixels) ---
-const FAQ_HEIGHT_FROM_NAVBAR = -2000; // Change this value to adjust FAQ section vertical position
-
 export default async function Home() {
   return (
     <>

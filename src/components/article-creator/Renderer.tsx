@@ -104,6 +104,13 @@ const customParsers: Record<
     return `<p class="paragraph">${parsedText}</p>`;
   },
 
+  header: (data, _config) => {
+    const { text, level } = data as { text: string; level: number };
+    const lvl = Math.min(Math.max(level || 1, 1), 6);
+    const parsedText = parseLatex(text);
+    return `<h${lvl}>${parsedText}</h${lvl}>`;
+  },
+
   quote: (data, _config) => {
     const { alignment, caption, text } = data as {
       alignment: string;

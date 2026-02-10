@@ -9,7 +9,7 @@ const links = [
   // },
   {
     title: "Privacy Policy",
-    url: "/",
+    url: "/privacy",
   },
   {
     title: "Copyright",

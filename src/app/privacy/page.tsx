@@ -24,7 +24,7 @@ export default function PrivacyPage() {
       <main className="min-h-screen bg-background py-16">
         <article className="mx-auto max-w-4xl px-6 lg:px-8 [&_a]:text-primary [&_a]:underline [&_a]:hover:no-underline">
           <div
-            className="prose prose-neutral dark:prose-invert max-w-none [&_.body_text]:text-muted-foreground [&_.subtitle]:text-muted-foreground"
+            className="prose prose-neutral dark:prose-invert max-w-none [&_.subtitle]:text-muted-foreground [&_.privacy-policy_h2]:mt-10 [&_.privacy-policy_h2]:scroll-mt-24 [&_.privacy-policy_h3]:mt-6"
             dangerouslySetInnerHTML={{ __html: content }}
           />
         </article>

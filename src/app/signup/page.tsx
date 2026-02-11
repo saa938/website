@@ -13,6 +13,7 @@ export default function Signup() {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [ageConfirmed, setAgeConfirmed] = useState(false);
 
   const togglePasswordVisibility = () => setShowPassword(!showPassword);
 
@@ -27,6 +28,11 @@ export default function Signup() {
 
     if (!formEle.checkValidity()) {
       formEle.reportValidity();
+      return;
+    }
+
+    if (!ageConfirmed) {
+      setErrors(["You must confirm you are at least 13 years of age to create an account."]);
       return;
     }
 
@@ -163,6 +169,18 @@ export default function Signup() {
               required
             />
           </div>
+
+          <label className="flex cursor-pointer items-start gap-3 text-sm text-gray-600">
+            <input
+              type="checkbox"
+              checked={ageConfirmed}
+              onChange={(e) => setAgeConfirmed(e.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              required
+            />
+            <span>I confirm I am at least 13 years of age.</span>
+          </label>
+
           <Button className="text-xl font-semibold" type="submit">
             {loading ? "Loading..." : "Sign up"}
           </Button>
@@ -200,7 +218,14 @@ export default function Signup() {
               </svg>
             }
             className="text-xl"
-            onClick={signUpWithGoogle}
+            onClick={() => {
+              if (!ageConfirmed) {
+                setErrors(["You must confirm you are at least 13 years of age to create an account."]);
+                return;
+              }
+              setErrors([]);
+              signUpWithGoogle();
+            }}
             type="button"
           >
             Sign up with Google

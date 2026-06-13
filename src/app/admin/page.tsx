@@ -45,7 +45,14 @@ const Page = () => {
             <AdminPanel user={user} />
           </>
         )}
-
+        
+        
+          <Link href="/admin/feedback" className="hover:text-yellow-600">
+            <Button className="w-full">
+            Check Feedback & Bug Reports
+            </Button>
+          </Link>
+        <br></br>
         <SelectCourse />
       </div>
 

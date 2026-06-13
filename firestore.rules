@@ -99,5 +99,12 @@ service cloud.firestore {
     match /profiles/{userId} {
       allow read, write: if isAuthenticated() && request.auth.uid == userId;
     }
+
+    match /feedback/{feedbackId} {
+      allow create: if request.resource.data.type in ['general', 'bug', 'questions']
+                    && request.resource.data.message is string
+                    && request.resource.data.message.trim() != '';
+      allow read, update, delete: if isAdmin();
+    }
   }
 }

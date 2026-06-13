@@ -6,8 +6,10 @@ import { db } from '@/lib/firebase';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { buttonVariants } from "@/components/ui/button";
 import {ArrowLeft} from "lucide-react";
+import { useRouter } from 'next/navigation';
 
 export default function AdminFeedbackDashboard() {
+  const router = useRouter();
   const [feedbackItems, setFeedbackItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -53,14 +55,14 @@ export default function AdminFeedbackDashboard() {
             <thead className="bg-gray-50 text-gray-700 uppercase font-semibold text-xs tracking-wider">
               <tr>
                 <th className="p-4">Type</th>
-                <th className="p-4">Summary</th>
+                <th className="p-4">Title</th>
                 <th className="p-4">Submitted By</th>
                 <th className="p-4">Date</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 text-gray-700">
               {feedbackItems.map((item) => (
-                <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                <tr key={item.id} onClick={() => router.push(`/admin/feedback/${item.id}`)} className="hover:bg-gray-50 transition-colors">
                   <td className="p-4 whitespace-nowrap">
                     <span className={`px-2 py-1 rounded text-xs font-semibold uppercase ${
                       item.type === 'bug' ? 'bg-red-100 text-red-800' : 
@@ -72,7 +74,7 @@ export default function AdminFeedbackDashboard() {
                   <td className="p-4 font-medium max-w-xs truncate">
                     <Link href={`/admin/feedback/${item.id}`} className="text-yellow-600 hover:underline">
                       {item.type === 'bug' ? `[${item.bugType}] ` : ''}
-                      {item.message}
+                      {item.title}
                     </Link>
                   </td>
                   <td className="p-4 text-gray-500">{item.email}</td>

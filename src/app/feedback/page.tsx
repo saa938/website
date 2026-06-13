@@ -12,6 +12,7 @@ export default function FeedbackPage() {
   
   const [message, setMessage] = useState('');
   const [email, setEmail] = useState('');
+  const [title, setTitle] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -25,6 +26,7 @@ export default function FeedbackPage() {
       const feedbackPayload: any = {
         type: type,
         message: message,
+        title: title,
         email: email || 'anonymous',
         createdAt: new Date(),
       };
@@ -40,6 +42,7 @@ export default function FeedbackPage() {
       setStatus('success');
       setMessage('');
       setEmail('');
+      setTitle('');
       setBugUrl('');
     } catch (err) {
       console.error('Error submitting feedback:', err);
@@ -113,6 +116,18 @@ export default function FeedbackPage() {
           </>
         )}
         {/* ------------------------------------------------------------- */}
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+          <input 
+            type="text"
+            required
+            placeholder="title of issue"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full p-2 border rounded-md bg-gray-50 text-gray-900"
+          />
+        </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Your Email (Optional)</label>

@@ -81,6 +81,17 @@ export default function FeedbackDetailsPage() {
           </>
         )}
 
+
+        <div>
+          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
+            {bug.type === 'bug' ? 'Detailed Description & Steps' : 'Title'}
+          </h3>
+          <div className="bg-gray-50 border rounded py-2 px-4 text-gray-800 truncate">
+            {bug.title}
+          </div>
+        </div>
+
+
         <div>
           <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
             {bug.type === 'bug' ? 'Detailed Description & Steps' : 'User Message'}

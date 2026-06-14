@@ -1,4 +1,3 @@
-//Archived is the same is Resolved
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -15,17 +14,17 @@ export default function AdminFeedbackDashboard() {
   const [activeTab, setActiveTab] = useState<'active' | 'resolved'>('active');
   const [loading, setLoading] = useState(true);
 
-  const handleArchive = async (e: React.MouseEvent, itemId: string, item: any) => {
+  const handleResolve = async (e: React.MouseEvent, itemId: string, item: any) => {
     e.stopPropagation();
     setArchivingIds(prev => [...prev, itemId]);
     try {
         const docRef = doc(db, 'feedback', itemId);
-        const nextStatus = !item.isArchived;
-        await updateDoc(docRef, { isArchived: nextStatus });
+        const nextStatus = !item.isResolved;
+        await updateDoc(docRef, { isResolved: nextStatus });
 
         setFeedbackItems(prevItems =>
         prevItems.map(item =>
-            item.id === itemId ? { ...item, isArchived: nextStatus } : item
+            item.id === itemId ? { ...item, isResolved: nextStatus } : item
         )
         );   
     }
@@ -37,8 +36,8 @@ export default function AdminFeedbackDashboard() {
     }
   };
 
-  const activeItems = feedbackItems.filter(item => !item.isArchived);
-  const resolvedItems = feedbackItems.filter(item => item.isArchived);
+  const activeItems = feedbackItems.filter(item => !item.isResolved);
+  const resolvedItems = feedbackItems.filter(item => item.isResolved);
   const displayedItems = activeTab === 'active' ? activeItems : resolvedItems;
   const [archivingIds, setArchivingIds] = useState<string[]>([]);
 
@@ -140,10 +139,10 @@ export default function AdminFeedbackDashboard() {
                   </td>
                   <td className="p-4" onClick={(e) => e.stopPropagation()}>
                     <button 
-                        onClick={(e) => handleArchive(e, item.id, item)} 
+                        onClick={(e) => handleResolve(e, item.id, item)} 
                         disabled={archivingIds.includes(item.id)}
                         className={`inline-flex items-center gap-1 px-3 py-1 rounded text-xs font-medium transition-colors ${
-                        item.isArchived 
+                        item.isResolved 
                             ? 'bg-green-100 hover:bg-green-200 text-green-800' 
                             : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
                         }`}
@@ -153,7 +152,7 @@ export default function AdminFeedbackDashboard() {
                             <Loader2 className="h-3 w-3 animate-spin" />
                             Updating...
                         </>
-                        ) : item.isArchived ? (
+                        ) : item.isResolved ? (
                         "Unresolve"
                         ) : (
                         "Resolve"

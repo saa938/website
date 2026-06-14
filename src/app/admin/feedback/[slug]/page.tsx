@@ -55,12 +55,21 @@ export default function FeedbackDetailsPage() {
         </span>
       </div>
 
+      <div>
+        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
+          {'Title'}
+        </h3>
+        <div className="bg-gray-50 border rounded py-2 px-4 text-gray-800 truncate">
+          {bug.title}
+        </div>
+      </div>
+
       <div className="space-y-6">
         {bug.type === 'bug' && (
           <>
-            <div>
+            <div className="border-t border-gray-200 pt-6">
               <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Issue Category</h3>
-              <p className="text-gray-900 font-medium bg-gray-50 p-2 rounded border">{bug.bugType}</p>
+              <p className="text-gray-900 font-medium block bg-gray-50 p-2 rounded border ">{bug.bugType}</p>
             </div>
 
             <div>
@@ -80,16 +89,6 @@ export default function FeedbackDetailsPage() {
             </div>
           </>
         )}
-
-
-        <div>
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
-            {bug.type === 'bug' ? 'Detailed Description & Steps' : 'Title'}
-          </h3>
-          <div className="bg-gray-50 border rounded py-2 px-4 text-gray-800 truncate">
-            {bug.title}
-          </div>
-        </div>
 
 
         <div>

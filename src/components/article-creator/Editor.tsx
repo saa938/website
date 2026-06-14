@@ -30,7 +30,7 @@ import {
   uploadBytes,
 } from "firebase/storage";
 import { buttonVariants } from "../ui/button";
-import { cn } from "@/lib/utils";
+import { cn, resolveUploadContentType } from "@/lib/utils";
 
 interface EditorImageData {
   file: { url?: string; storageRefFullPath?: string; [key: string]: unknown };
@@ -87,7 +87,9 @@ class CustomImage extends Image {
     // constrain the call at the boundary instead of widening the rest of the file.
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment,@typescript-eslint/no-unsafe-call,@typescript-eslint/no-unsafe-member-access
     const settings = baseImageTool.prototype.renderSettings.call(typedTool);
-    const settingsArray = (Array.isArray(settings) ? settings : [settings]) as unknown[];
+    const settingsArray = (
+      Array.isArray(settings) ? settings : [settings]
+    ) as unknown[];
 
     return [
       {
@@ -96,7 +98,9 @@ class CustomImage extends Image {
         title: "Delete image",
         onActivate: () => {
           const { file } = typedTool._data;
-          const blockIndex = typedTool.api.blocks.getBlockIndex(typedTool.block.id);
+          const blockIndex = typedTool.api.blocks.getBlockIndex(
+            typedTool.block.id,
+          );
 
           if (blockIndex === -1) {
             return;
@@ -177,7 +181,12 @@ export const EDITOR_TOOLS: EditorConfig["tools"] = {
           );
 
           try {
-            const snapshot = await uploadBytes(storageRef, file);
+            const contentType = resolveUploadContentType(file);
+            const snapshot = await uploadBytes(
+              storageRef,
+              file,
+              contentType ? { contentType } : undefined,
+            );
             const downloadURL = await getDownloadURL(snapshot.ref);
 
             return {
@@ -445,7 +454,10 @@ const Editor = ({
       />
 
       <div className="mb-4 rounded-sm border p-3">
-        <label className="mb-2 block text-sm font-medium" htmlFor="pasted-editor-json">
+        <label
+          className="mb-2 block text-sm font-medium"
+          htmlFor="pasted-editor-json"
+        >
           Paste raw Editor JSON
         </label>
         <textarea
@@ -457,10 +469,7 @@ const Editor = ({
         />
         <div className="mt-2 flex justify-end">
           <button
-            className={cn(
-              buttonVariants({ variant: "outline" }),
-              "rounded-sm",
-            )}
+            className={cn(buttonVariants({ variant: "outline" }), "rounded-sm")}
             onClick={handleImportPastedJson}
             type="button"
           >

@@ -210,9 +210,17 @@ const customParsers: Record<
   },
 
   image: (data, _config) => {
+    // SVGs (viewBox only) collapse or render at the 300x150 replaced-element
+    // default unless given a definite width, so tag them for the .img-svg rule.
+    const storageRefPath = data.file?.storageRefFullPath;
+    const storagePath =
+      typeof storageRefPath === "string" ? storageRefPath : "";
+    const isSvg =
+      storagePath.toLowerCase().endsWith(".svg") ||
+      (typeof data.url === "string" && data.url.toLowerCase().includes(".svg"));
     const imageConditions = `${data.stretched ? "img-fullwidth" : ""} ${
       data.withBorder ? "img-border" : ""
-    } ${data.withBackground ? "img-bg" : ""} ${data.centerImage ? "img-center" : ""}`;
+    } ${data.withBackground ? "img-bg" : ""} ${data.centerImage ? "img-center" : ""} ${isSvg ? "img-svg" : ""}`;
     const imgClass = _config.image.imgClass ?? "";
     let imageSrc;
 

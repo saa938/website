@@ -4,7 +4,7 @@ import type { QuestionFile, QuestionInput } from "@/types/questions";
 import "../../../styles/katexStyling.css";
 import { decodeEntities, katexMacros } from "../Renderer";
 
-import { cn } from "@/lib/utils";
+import { cn, isSvgFileName } from "@/lib/utils";
 
 interface Props {
   content: QuestionInput;
@@ -107,13 +107,22 @@ const FileRenderer: React.FC<{ file: QuestionFile }> = ({ file }) => {
   if (!objectUrl) return null;
 
   if (isImageFileKey(file.key)) {
+    // SVGs frequently omit intrinsic dimensions (viewBox only), which makes them
+    // collapse or overflow under width/height auto. Give them a definite,
+    // responsive width instead.
+    const isSvg = isSvgFileName(file.name) || file.key.startsWith("image-svg");
     return (
-      <div className="my-2 w-full flex justify-center">
+      <div className="my-2 flex w-full justify-center">
         <img
           src={objectUrl}
           alt={file.alt ?? "Uploaded image"}
           loading="lazy"
-          className="h-auto max-h-[450px] w-auto max-w-full rounded-md object-contain shadow-sm transition-shadow duration-200 hover:shadow-md"
+          className={cn(
+            "rounded-md object-contain shadow-sm transition-shadow duration-200 hover:shadow-md",
+            isSvg
+              ? "h-auto w-full max-w-[450px]"
+              : "h-auto max-h-[450px] w-auto max-w-full",
+          )}
         />
       </div>
     );
@@ -158,7 +167,7 @@ export function RenderContent({ content, origin }: Props) {
     const byName = sortedFiles.find(
       (f) =>
         f.name.toLowerCase() === trimmed.toLowerCase() ||
-        f.name.split(".")[0]?.toLowerCase() === trimmed.toLowerCase()
+        f.name.split(".")[0]?.toLowerCase() === trimmed.toLowerCase(),
     );
     if (byName) return byName;
     return null;
@@ -172,8 +181,11 @@ export function RenderContent({ content, origin }: Props) {
         return (
           <pre
             key={`code-${tokenIndex}`}
-            className="my-2 whitespace-pre-wrap overflow-x-auto rounded p-2 font-mono text-sm leading-relaxed text-black max-w-full"
-            style={{ fontFamily: "'Consolas', monospace", backgroundColor: "#f0f0f0" }}
+            className="my-2 max-w-full overflow-x-auto whitespace-pre-wrap rounded p-2 font-mono text-sm leading-relaxed text-black"
+            style={{
+              fontFamily: "'Consolas', monospace",
+              backgroundColor: "#f0f0f0",
+            }}
           >
             <code>{codeContent}</code>
           </pre>
@@ -196,7 +208,10 @@ export function RenderContent({ content, origin }: Props) {
         if (matchedFile) {
           renderedInlineKeys.add(matchedFile.key);
           return (
-            <div key={`inline-img-${tokenIndex}`} className="my-4 block text-center">
+            <div
+              key={`inline-img-${tokenIndex}`}
+              className="my-4 block text-center"
+            >
               <FileRenderer file={matchedFile} />
               {matchedFile.alt && (
                 <span className="mt-1 block text-center text-xs italic text-gray-500">
@@ -211,9 +226,15 @@ export function RenderContent({ content, origin }: Props) {
     });
 
   // Filter out files that were already rendered inline
-  const remainingFiles = sortedFiles.filter((file) => !renderedInlineKeys.has(file.key));
-  const remainingImages = remainingFiles.filter((file) => isImageFileKey(file.key));
-  const remainingAudio = remainingFiles.filter((file) => isAudioFileKey(file.key));
+  const remainingFiles = sortedFiles.filter(
+    (file) => !renderedInlineKeys.has(file.key),
+  );
+  const remainingImages = remainingFiles.filter((file) =>
+    isImageFileKey(file.key),
+  );
+  const remainingAudio = remainingFiles.filter((file) =>
+    isAudioFileKey(file.key),
+  );
 
   return (
     <div className="custom-katex my-2 whitespace-pre-wrap">
@@ -229,15 +250,17 @@ export function RenderContent({ content, origin }: Props) {
       {remainingImages.length > 0 && (
         <div className="mt-4">
           {origin === "question" && remainingImages.length >= 2 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+            <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2">
               {remainingImages.map((file, idx) => {
-                const isThirdOfThree = remainingImages.length === 3 && idx === 2;
+                const isThirdOfThree =
+                  remainingImages.length === 3 && idx === 2;
                 return (
                   <div
                     key={file.key}
                     className={cn(
-                      "flex flex-col items-center justify-center p-2 rounded-lg border border-gray-200 bg-gray-50/40 shadow-sm",
-                      isThirdOfThree && "sm:col-span-2 sm:max-w-2xl sm:mx-auto w-full"
+                      "flex flex-col items-center justify-center rounded-lg border border-gray-200 bg-gray-50/40 p-2 shadow-sm",
+                      isThirdOfThree &&
+                        "w-full sm:col-span-2 sm:mx-auto sm:max-w-2xl",
                     )}
                   >
                     <FileRenderer file={file} />

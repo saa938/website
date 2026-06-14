@@ -55,19 +55,20 @@ export default function FeedbackDetailsPage() {
         </span>
       </div>
 
-      <div>
-        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
-          {'Title'}
-        </h3>
-        <div className="bg-gray-50 border rounded py-2 px-4 text-gray-800 truncate">
-          {bug.title}
-        </div>
-      </div>
 
       <div className="space-y-6">
+        <div>
+          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
+            {'Title'}
+          </h3>
+          <div className="bg-gray-50 border rounded py-2 px-4 text-gray-800 truncate">
+            {bug.title}
+          </div>
+        </div>
+
         {bug.type === 'bug' && (
           <>
-            <div className="border-t border-gray-200 pt-6">
+            <div>
               <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Issue Category</h3>
               <p className="text-gray-900 font-medium block bg-gray-50 p-2 rounded border ">{bug.bugType}</p>
             </div>

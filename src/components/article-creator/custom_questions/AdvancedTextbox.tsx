@@ -5,14 +5,18 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 import React, { useRef, useState, useEffect } from "react";
 import { Textarea } from "@/components/ui/textarea";
-import type {
-  QuestionFile,
-  QuestionFormat,
-} from "@/types/questions";
+import type { QuestionFile, QuestionFormat } from "@/types/questions";
 import { Paperclip, Trash, ChevronLeft, ChevronRight } from "lucide-react";
-import { deleteObject, getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import {
+  deleteObject,
+  getStorage,
+  ref,
+  uploadBytes,
+  getDownloadURL,
+} from "firebase/storage";
 import { getUser } from "@/components/hooks/users";
 import { getFileFromIndexedDB } from "./RenderAdvancedTextbox";
+import { isSvgFileName, resolveUploadContentType } from "@/lib/utils";
 
 interface Props {
   questions: QuestionFormat[];
@@ -139,15 +143,17 @@ const ThumbnailPreview: React.FC<{ file: QuestionFile }> = ({ file }) => {
       <img
         src={src}
         alt="Thumbnail preview"
-        className="h-20 w-20 rounded object-cover border border-gray-200"
+        className="h-20 w-20 rounded border border-gray-200 object-cover"
       />
     );
   }
 
   return (
-    <div className="flex h-20 w-20 flex-col items-center justify-center rounded bg-blue-50 border border-blue-200 text-blue-500">
+    <div className="flex h-20 w-20 flex-col items-center justify-center rounded border border-blue-200 bg-blue-50 text-blue-500">
       <Paperclip size={20} />
-      <span className="mt-1 text-[9px] truncate max-w-[70px] px-1">{file.name}</span>
+      <span className="mt-1 max-w-[70px] truncate px-1 text-[9px]">
+        {file.name}
+      </span>
     </div>
   );
 };
@@ -165,30 +171,33 @@ export default function AdvancedTextbox({
   const [currentText, setCurrentText] = useState<string>("");
   const [uploadedFiles, setUploadedFiles] = useState<QuestionFile[]>([]);
   const [uploadStatuses, setUploadStatuses] = useState<
-    Record<string, { status: "uploading" | "success" | "error"; error?: string }>
+    Record<
+      string,
+      { status: "uploading" | "success" | "error"; error?: string }
+    >
   >({});
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sync state when loaded
-    useEffect(() => {
+  useEffect(() => {
     const nextText =
       origin === "option" && oIndex !== undefined
-        ? questionInstance!.options[oIndex]?.value?.value ?? ""
+        ? (questionInstance!.options[oIndex]?.value?.value ?? "")
         : origin === "question" ||
             origin === "explanation" ||
             origin === "content"
-          ? questionInstance![origin]?.value ?? ""
+          ? (questionInstance![origin]?.value ?? "")
           : "";
 
     const nextFiles =
       origin === "option" && oIndex !== undefined
-        ? questionInstance!.options[oIndex]?.value?.files ?? []
+        ? (questionInstance!.options[oIndex]?.value?.files ?? [])
         : origin === "question" ||
             origin === "explanation" ||
             origin === "content"
-          ? questionInstance![origin]?.files ?? []
+          ? (questionInstance![origin]?.files ?? [])
           : [];
 
     if (currentText !== nextText) {
@@ -225,18 +234,21 @@ export default function AdvancedTextbox({
 
       const lastNewLineIndex = textBeforeCursor.lastIndexOf("\n");
       const currentLine = textBeforeCursor.substring(lastNewLineIndex + 1);
-      
+
       const match = currentLine.match(/^\s*/);
       const leadingWhitespace = match ? match[0] : "";
 
       if (leadingWhitespace) {
         e.preventDefault();
-        const newText = textBeforeCursor + "\n" + leadingWhitespace + textAfterCursor;
+        const newText =
+          textBeforeCursor + "\n" + leadingWhitespace + textAfterCursor;
         updateQuestionText(newText);
 
         setTimeout(() => {
           if (textareaRef.current) {
-            textareaRef.current.selectionStart = textareaRef.current.selectionEnd = cursorPosition + 1 + leadingWhitespace.length;
+            textareaRef.current.selectionStart =
+              textareaRef.current.selectionEnd =
+                cursorPosition + 1 + leadingWhitespace.length;
           }
         }, 0);
       }
@@ -254,18 +266,20 @@ export default function AdvancedTextbox({
 
         if (currentLine.length > 0 && /^\s+$/.test(currentLine)) {
           e.preventDefault();
-          
+
           const spacesToDelete = currentLine.length % 2 !== 0 ? 1 : 2;
 
-          const newText = 
-            currentText.substring(0, cursorPosition - spacesToDelete) + 
+          const newText =
+            currentText.substring(0, cursorPosition - spacesToDelete) +
             currentText.substring(cursorPosition);
-            
+
           updateQuestionText(newText);
 
           setTimeout(() => {
             if (textareaRef.current) {
-              textareaRef.current.selectionStart = textareaRef.current.selectionEnd = cursorPosition - spacesToDelete;
+              textareaRef.current.selectionStart =
+                textareaRef.current.selectionEnd =
+                  cursorPosition - spacesToDelete;
             }
           }, 0);
         }
@@ -283,14 +297,14 @@ export default function AdvancedTextbox({
       const end = textarea.selectionEnd;
       const indent = "  ";
       const newText =
-      currentText.substring(0, start) + indent + currentText.substring(end);
-      
+        currentText.substring(0, start) + indent + currentText.substring(end);
+
       updateQuestionText(newText);
 
       setTimeout(() => {
         if (textareaRef.current) {
-          textareaRef.current.selectionStart = textareaRef.current.selectionEnd =
-            start + indent.length;
+          textareaRef.current.selectionStart =
+            textareaRef.current.selectionEnd = start + indent.length;
         }
       }, 0);
     }
@@ -301,7 +315,11 @@ export default function AdvancedTextbox({
     const updatedQuestions = [...questions];
     const updatedQuestion = { ...questionInstance! };
 
-    if (origin === "question" || origin === "explanation" || origin === "content") {
+    if (
+      origin === "question" ||
+      origin === "explanation" ||
+      origin === "content"
+    ) {
       updatedQuestion[origin] = {
         ...updatedQuestion[origin],
         files: newFiles,
@@ -381,7 +399,12 @@ export default function AdvancedTextbox({
     try {
       const storage = getStorage();
       const storageRef = ref(storage, fileKey);
-      const snapshot = await uploadBytes(storageRef, file);
+      const contentType = resolveUploadContentType(file);
+      const snapshot = await uploadBytes(
+        storageRef,
+        file,
+        contentType ? { contentType } : undefined,
+      );
       const downloadURL = await getDownloadURL(snapshot.ref);
 
       setUploadStatuses((prev) => ({
@@ -403,18 +426,19 @@ export default function AdvancedTextbox({
         ...prev,
         [fileKey]: {
           status: "error",
-        error: err instanceof Error ? err.message : "Upload failed",
-      },
+          error: err instanceof Error ? err.message : "Upload failed",
+        },
       }));
     }
   };
-
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files ?? [];
     let files = Array.from(fileList).filter(
       (file) =>
-        file.type.startsWith("image/") || file.type.startsWith("audio/"),
+        file.type.startsWith("image/") ||
+        file.type.startsWith("audio/") ||
+        isSvgFileName(file.name),
     );
 
     const validFiles = files.filter((file) => file.size <= 5 * 1024 * 1024);
@@ -434,10 +458,15 @@ export default function AdvancedTextbox({
     const filesToUpload: { key: string; file: File }[] = [];
 
     files.forEach((file) => {
-      // Create a unique key that works cleanly in storage
-      const sanitizedType = file.type.replace(/\//g, "-");
+      // Resolve the MIME type (some SVGs report an empty file.type) and build a
+      // storage-safe key. Stripping non-alphanumerics also removes the "+" in
+      // image/svg+xml, while keeping the leading "image-" prefix the renderer
+      // uses to treat the file as an image.
+      const mimeType =
+        file.type || (isSvgFileName(file.name) ? "image/svg+xml" : "");
+      const sanitizedType = mimeType.replace(/[^a-z0-9]+/gi, "-");
       const fileKey = `${sanitizedType}-${Date.now()}-${file.name}`;
-      
+
       storeFileInIndexedDB(fileKey, file);
 
       newFiles.push({
@@ -506,7 +535,9 @@ export default function AdvancedTextbox({
       if (stored?.file) {
         void uploadSingleFile(fileKey, stored.file);
       } else {
-        alert(`Could not find local file data for "${fileName}". Please remove and re-upload.`);
+        alert(
+          `Could not find local file data for "${fileName}". Please remove and re-upload.`,
+        );
       }
     } catch (err) {
       console.error("Retry load from IndexedDB failed:", err);
@@ -516,7 +547,7 @@ export default function AdvancedTextbox({
 
   const updateFileAlt = (fileKey: string, newAlt: string) => {
     const updated = uploadedFiles.map((f) =>
-      f.key === fileKey ? { ...f, alt: newAlt } : f
+      f.key === fileKey ? { ...f, alt: newAlt } : f,
     );
     setUploadedFiles(updated);
     updateQuestionsWithFiles(updated);
@@ -545,13 +576,18 @@ export default function AdvancedTextbox({
     const end = textarea.selectionEnd;
 
     const newText =
-      currentText.substring(0, start) + placeholderText + currentText.substring(end);
-    
+      currentText.substring(0, start) +
+      placeholderText +
+      currentText.substring(end);
+
     updateQuestionText(newText);
 
     setTimeout(() => {
       textarea.focus();
-      textarea.setSelectionRange(start + placeholderText.length, start + placeholderText.length);
+      textarea.setSelectionRange(
+        start + placeholderText.length,
+        start + placeholderText.length,
+      );
     }, 0);
   };
 
@@ -600,7 +636,10 @@ export default function AdvancedTextbox({
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-xs font-semibold text-gray-800" title={file.name}>
+                    <div
+                      className="truncate text-xs font-semibold text-gray-800"
+                      title={file.name}
+                    >
                       {file.name}
                     </div>
 
@@ -620,7 +659,7 @@ export default function AdvancedTextbox({
                     )}
 
                     {statusInfo.status === "success" && (
-                      <span className="mt-1 inline-flex items-center rounded bg-green-50 px-1.5 py-0.5 text-[9px] font-medium text-green-700 border border-green-200">
+                      <span className="mt-1 inline-flex items-center rounded border border-green-200 bg-green-50 px-1.5 py-0.5 text-[9px] font-medium text-green-700">
                         Uploaded
                       </span>
                     )}
@@ -629,7 +668,7 @@ export default function AdvancedTextbox({
                   <button
                     type="button"
                     onClick={() => handleDeleteFile(file.key)}
-                    className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-red-500 transition-colors"
+                    className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-red-500"
                     title="Remove file"
                   >
                     <Trash size={14} />
@@ -640,7 +679,7 @@ export default function AdvancedTextbox({
                   <div className="flex items-center gap-1.5">
                     <label
                       htmlFor={`alt-${file.key}`}
-                      className="text-[9px] font-bold text-gray-500 uppercase tracking-wider shrink-0"
+                      className="shrink-0 text-[9px] font-bold uppercase tracking-wider text-gray-500"
                     >
                       Alt:
                     </label>
@@ -650,7 +689,7 @@ export default function AdvancedTextbox({
                       placeholder="Alt text (e.g. Graph of sales)"
                       value={file.alt ?? ""}
                       onChange={(e) => updateFileAlt(file.key, e.target.value)}
-                      className="flex h-7 w-full rounded border border-gray-200 bg-background px-2 py-1 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-300 placeholder:text-gray-400"
+                      className="flex h-7 w-full rounded border border-gray-200 bg-background px-2 py-1 text-xs placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-gray-300"
                     />
                   </div>
 
@@ -660,7 +699,7 @@ export default function AdvancedTextbox({
                         type="button"
                         disabled={index === 0}
                         onClick={() => moveFile(index, "left")}
-                        className="rounded border border-gray-200 bg-gray-50 p-1 text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-gray-50 transition-colors"
+                        className="rounded border border-gray-200 bg-gray-50 p-1 text-gray-600 transition-colors hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-gray-50"
                         title="Move left/up"
                       >
                         <ChevronLeft size={12} />
@@ -669,7 +708,7 @@ export default function AdvancedTextbox({
                         type="button"
                         disabled={index === uploadedFiles.length - 1}
                         onClick={() => moveFile(index, "right")}
-                        className="rounded border border-gray-200 bg-gray-50 p-1 text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-gray-50 transition-colors"
+                        className="rounded border border-gray-200 bg-gray-50 p-1 text-gray-600 transition-colors hover:bg-gray-100 disabled:opacity-40 disabled:hover:bg-gray-50"
                         title="Move right/down"
                       >
                         <ChevronRight size={12} />
@@ -679,7 +718,7 @@ export default function AdvancedTextbox({
                     <button
                       type="button"
                       onClick={() => insertPlaceholder(file, index)}
-                      className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 hover:bg-blue-100 transition-colors"
+                      className="rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 transition-colors hover:bg-blue-100"
                       title="Insert inline placeholder tag"
                     >
                       Insert Inline
@@ -695,7 +734,7 @@ export default function AdvancedTextbox({
       <div className="mt-2 flex justify-end">
         <button
           type="button"
-          className="flex items-center gap-1 rounded-md border border-blue-500 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-100 hover:text-blue-700 transition-all shadow-sm"
+          className="flex items-center gap-1 rounded-md border border-blue-500 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-600 shadow-sm transition-all hover:bg-blue-100 hover:text-blue-700"
           onClick={handleUploadClick}
         >
           <Paperclip size={14} /> Add file

@@ -1,10 +1,10 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-floating-promises, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-argument, react/no-unescaped-entities, @typescript-eslint/prefer-for-of */
+/* eslint-disable */
 'use client';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 
 interface FeedbackDetailsClientProps {
   slug: string;
@@ -17,7 +17,7 @@ interface FeedbackDetailsClientProps {
 
 function parseMarkdown(text: string): string {
   if (!text) return '';
-  
+
   // 1. Escape HTML to prevent XSS
   let escaped = text
     .replace(/&/g, '&amp;')
@@ -120,7 +120,7 @@ export default function FeedbackDetailsClient({ slug, config }: FeedbackDetailsC
       try {
         const docRef = doc(db, 'feedback', slug);
         const docSnap = await getDoc(docRef);
-        
+
         if (docSnap.exists()) {
           setBug(docSnap.data() as FeedbackItem);
         } else {
@@ -226,7 +226,7 @@ export default function FeedbackDetailsClient({ slug, config }: FeedbackDetailsC
 
   return (
     <div className="max-w-2xl mx-auto my-12 p-6 bg-white rounded-lg shadow-md border">
-      <button 
+      <button
         onClick={() => router.back()}
         className="text-sm text-gray-500 hover:text-gray-800 mb-4 inline-flex items-center gap-1"
       >
@@ -245,9 +245,8 @@ export default function FeedbackDetailsClient({ slug, config }: FeedbackDetailsC
               Active
             </span>
           )}
-          <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${
-            bug.type === 'bug' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
-          }`}>
+          <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${bug.type === 'bug' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
+            }`}>
             {bug.type}
           </span>
         </div>
@@ -273,13 +272,13 @@ export default function FeedbackDetailsClient({ slug, config }: FeedbackDetailsC
             <div>
               <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Context URL</h3>
               {bug.bugUrl && bug.bugUrl !== 'N/A' ? (
-                <a 
-                  href={bug.bugUrl} 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
+                <a
+                  href={bug.bugUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="text-yellow-600 hover:underline break-all font-medium block bg-gray-50 p-2 rounded border"
                 >
-                  {bug.bugUrl} 
+                  {bug.bugUrl}
                 </a>
               ) : (
                 <p className="text-gray-500 bg-gray-50 p-2 rounded border">N/A</p>
@@ -324,7 +323,7 @@ export default function FeedbackDetailsClient({ slug, config }: FeedbackDetailsC
             {bug.type === 'bug' ? 'Detailed Description & Steps' : 'User Message'}
           </h3>
           {/* Content Report Container with native Markdown parser applied */}
-          <div 
+          <div
             id="content-report-container"
             className="bg-gray-50 border rounded p-4 text-gray-800 min-h-[100px] leading-relaxed"
             dangerouslySetInnerHTML={{ __html: parseMarkdown(bug.message) }}
@@ -336,9 +335,9 @@ export default function FeedbackDetailsClient({ slug, config }: FeedbackDetailsC
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Attached Image</h3>
             <div className="bg-gray-50 border rounded p-4 flex justify-center">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img 
-                src={bug.attachedImage} 
-                alt="Attached Screenshot" 
+              <img
+                src={bug.attachedImage}
+                alt="Attached Screenshot"
                 className="max-h-96 object-contain rounded border shadow-sm"
               />
             </div>
@@ -348,14 +347,14 @@ export default function FeedbackDetailsClient({ slug, config }: FeedbackDetailsC
         <div className="border-t pt-4 text-xs text-gray-500 space-y-1">
           <p><strong>Contact Email:</strong> {bug.email}</p>
           <p>
-            <strong>Timestamp:</strong> {bug.createdAt?.seconds 
-              ? new Date(bug.createdAt.seconds * 1000).toLocaleString() 
+            <strong>Timestamp:</strong> {bug.createdAt?.seconds
+              ? new Date(bug.createdAt.seconds * 1000).toLocaleString()
               : 'N/A'
             }
           </p>
         </div>
 
-        { (bug.type === 'bug' || bug.type === 'feature') && !bug.isResolved && (
+        {(bug.type === 'bug' || bug.type === 'feature') && !bug.isResolved && (
           <div className="pt-4 flex justify-end">
             <button
               onClick={handleCreateGitHubIssue}

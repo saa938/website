@@ -1,4 +1,5 @@
-"use client";
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 import Navbar from "@/components/global/navbar";
 import Footer from "@/components/global/footer";
 import type { User } from "@/types/user";

@@ -2,12 +2,6 @@ import { createEnv } from "@t3-oss/env-nextjs";
 import { z } from "zod";
 
 export const env = createEnv({
-  server: {
-    GITHUB_TOKEN: z.string().optional(),
-    GITHUB_OWNER: z.string().optional(),
-    GITHUB_REPO: z.string().optional(),
-  },
-
   // Client-side Firebase variables
   client: {
     NEXT_PUBLIC_FIREBASE_API_KEY: z.string(),
@@ -18,10 +12,9 @@ export const env = createEnv({
     NEXT_PUBLIC_FIREBASE_APP_ID: z.string(),
     NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: z.string().optional(), // Optional
   },
+
+  // Runtime environment variables
   runtimeEnv: {
-    GITHUB_TOKEN: process.env.GITHUB_TOKEN,
-    GITHUB_OWNER: process.env.GITHUB_OWNER,
-    GITHUB_REPO: process.env.GITHUB_REPO,
     NEXT_PUBLIC_FIREBASE_API_KEY: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
     NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN:
       process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,

@@ -1,49 +1,92 @@
 'use client'
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase'; 
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 export default function FeedbackPage() {
   const [type, setType] = useState('general');
   // New bug-specific states matching your images
   const [bugType, setBugType] = useState('Website Article Errors');
   const [bugUrl, setBugUrl] = useState('');
+  const [attachedImage, setAttachedImage] = useState('');
   
   const [message, setMessage] = useState('');
   const [email, setEmail] = useState('');
   const [title, setTitle] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAttachedImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setAttachedImage('');
+    }
+  };
+
+  const router = useRouter();
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim()) return;
 
     setStatus('loading');
-
     try {
+      interface NewFeedback {
+        type: string;
+        message: string;
+        title: string;
+        email: string;
+        // Firestore server timestamp field
+        createdAt: any;
+        bugType?: string;
+        bugUrl?: string;
+        attachedImage?: string;
+      }
+
       // Build the base payload
-      const feedbackPayload: any = {
-        type: type,
-        message: message,
-        title: title,
+      const feedbackPayload: NewFeedback = {
+        type,
+        message,
+        title,
         email: email || 'anonymous',
-        createdAt: new Date(),
+        createdAt: serverTimestamp(),
       };
 
       // Conditionally append the precise details if it's a bug report
       if (type === 'bug') {
         feedbackPayload.bugType = bugType;
         feedbackPayload.bugUrl = bugUrl || 'N/A';
+        if (attachedImage) {
+          feedbackPayload.attachedImage = attachedImage;
+        }
       }
 
-      await addDoc(collection(db, 'feedback'), feedbackPayload);
+      // Use Firestore server timestamp for consistency
+
+      // Debug log the payload before submission
+      console.log('Submitting feedback payload:', feedbackPayload);
+      const docRef = await addDoc(collection(db, 'feedback'), feedbackPayload);
+      console.log('Feedback document created with ID:', docRef.id);
 
       setStatus('success');
       setMessage('');
       setEmail('');
       setTitle('');
       setBugUrl('');
+      setAttachedImage('');
+      // Navigate to admin detail view for the new feedback
+      router.push(`/admin/feedback/${docRef.id}`);
+
+      const fileInput = document.getElementById('screenshot-input') as HTMLInputElement;
+      if (fileInput) {
+        fileInput.value = '';
+      }
     } catch (err) {
       console.error('Error submitting feedback:', err);
       setStatus('error');
@@ -111,6 +154,19 @@ export default function FeedbackPage() {
                 value={bugUrl}
                 onChange={(e) => setBugUrl(e.target.value)}
                 className="w-full p-2 border rounded-md bg-gray-50 text-gray-900"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Attach Screenshot (Optional)
+              </label>
+              <input 
+                id="screenshot-input"
+                type="file" 
+                accept="image/*"
+                onChange={handleImageChange}
+                className="w-full p-2 border rounded-md bg-gray-50 text-gray-900 text-sm file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-yellow-50 file:text-yellow-700 hover:file:bg-yellow-100"
               />
             </div>
           </>

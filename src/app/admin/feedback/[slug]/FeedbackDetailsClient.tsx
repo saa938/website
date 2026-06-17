@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 
 interface FeedbackDetailsClientProps {
   slug: string;
@@ -98,6 +98,10 @@ interface FeedbackItem {
     seconds: number;
     nanoseconds: number;
   };
+  // Feature request specific fields
+  featureProblem?: string;
+  featureAlternatives?: string;
+  featureSolution?: string;
 }
 
 export default function FeedbackDetailsClient({ slug, config }: FeedbackDetailsClientProps) {
@@ -105,6 +109,7 @@ export default function FeedbackDetailsClient({ slug, config }: FeedbackDetailsC
   const [bug, setBug] = useState<FeedbackItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [isCreatingIssue, setIsCreatingIssue] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -143,27 +148,32 @@ export default function FeedbackDetailsClient({ slug, config }: FeedbackDetailsC
       const repo = config.gitHubRepoName;
       const url = `https://api.github.com/repos/${owner}/${repo}/issues`;
 
-      const imgSrc = bug.attachedImage 
-        ? (bug.attachedImage.startsWith('data:') ? bug.attachedImage : `data:image/png;base64,${bug.attachedImage}`)
-        : '';
+      const imgMarkdown = bug.attachedImage && bug.attachedImage.startsWith('http') ? `\n\n[Attached Image](${bug.attachedImage})` : '';
 
-      const imageSection = imgSrc 
-        ? `\n\n### Attached Screenshot\n\n<img src="${imgSrc}" alt="Attached Screenshot" />`
-        : '';
+      let issueBody = `### Feedback Context\n\n- **Type:** ${bug.type}\n- **Contact Email:** ${bug.email ?? 'anonymous'}\n`;
+      if (bug.bugUrl && bug.bugUrl !== 'N/A') {
+        issueBody += `- **Context URL:** ${bug.bugUrl}\n`;
+      }
+      if (bug.type === 'bug') {
+        issueBody += `- **Category:** ${bug.bugType ?? 'N/A'}\n`;
+        issueBody += `\n### Detailed Description & Steps to Reproduce\n\n${bug.message}\n${imgMarkdown}`;
+      } else if (bug.type === 'feature') {
+        issueBody += `\n### Feature Request Details\n`;
+        if (bug.featureProblem) issueBody += `- **Problem:** ${bug.featureProblem}\n`;
+        if (bug.featureAlternatives) issueBody += `- **Alternatives Considered:** ${bug.featureAlternatives}\n`;
+        if (bug.featureSolution) issueBody += `- **Proposed Solution:** ${bug.featureSolution}\n`;
+        issueBody += `\n### Additional Description\n\n${bug.message}\n${imgMarkdown}`;
+      } else {
+        issueBody += `\n### Description\n\n${bug.message}${imgMarkdown}`;
+      }
 
-      const issueBody = `
-### Bug Report Context
-
-- **Category:** ${bug.bugType ?? 'N/A'}
-- **Context URL:** ${bug.bugUrl && bug.bugUrl !== 'N/A' ? bug.bugUrl : 'N/A'}
-- **Contact Email:** ${bug.email ?? 'anonymous'}
-
-### Detailed Description & Steps to Reproduce
-
-${bug.message}
-${imageSection}
-`;
-
+      const title = bug.title && bug.title.trim().length > 0 ? bug.title : `${bug.type === 'bug' ? 'Bug' : 'Feature'}: ${bug.bugType || ''}`;
+      const payload = {
+        title,
+        body: issueBody.trim(),
+        labels: [bug.type === 'bug' ? 'bug' : 'enhancement'],
+      };
+      console.log('Creating GitHub issue with payload:', payload);
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -171,28 +181,21 @@ ${imageSection}
           'Authorization': `Bearer ${config.gitHubAccessToken}`,
           'Accept': 'application/vnd.github.v3+json',
         },
-        body: JSON.stringify({
-          title: bug.title || `Bug Report: ${bug.bugType ?? 'General'}`,
-          body: issueBody.trim(),
-          labels: ['bug'],
-        }),
+        body: JSON.stringify(payload),
       });
-
       if (!response.ok) {
-        interface GitHubError {
-          message?: string;
-        }
-        const errorData = await response.json().catch(() => ({})) as GitHubError;
-        throw new Error(errorData.message ?? `GitHub API responded with status ${response.status}`);
+        const errorData = await response.json().catch(() => ({})) as any;
+        const detailed = errorData.errors?.map((e: any) => `${e.resource || ''} ${e.field || ''} ${e.code || ''}`).join(', ');
+        const msg = errorData.message ?? `GitHub API responded with status ${response.status}`;
+        throw new Error(detailed ? `${msg}: ${detailed}` : msg);
       }
 
       // Update Firestore document resolution status to resolved
       const docRef = doc(db, 'feedback', slug);
-      await updateDoc(docRef, { isResolved: true });
+      await setDoc(docRef, { isResolved: true }, { merge: true });
 
       alert("GitHub Issue created successfully!");
-      router.push('/admin/feedback');
-      router.refresh();
+      setSubmitted(true);
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       console.error("Failed to create GitHub issue:", err);
@@ -204,6 +207,20 @@ ${imageSection}
 
   if (loading) return <div className="p-8 text-center text-gray-500">Loading item snapshot...</div>;
   if (!bug) return <div className="p-8 text-center text-red-500">Feedback ticket not found.</div>;
+  if (submitted) {
+    return (
+      <div className="max-w-md mx-auto my-12 p-6 bg-white rounded-lg shadow-md border">
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">Feedback Submitted</h2>
+        <p className="text-gray-700 mb-4">Your feedback has been turned into a GitHub issue and marked as resolved.</p>
+        <button
+          onClick={() => router.push('/admin/feedback')}
+          className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 transition"
+        >
+          Back to Feedback List
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto my-12 p-6 bg-white rounded-lg shadow-md border">
@@ -268,6 +285,37 @@ ${imageSection}
             </div>
           </>
         )}
+        {bug.type === 'feature' && (
+          <>
+            <div>
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Context URL</h3>
+              {bug.featureContextUrl ? (
+                <a
+                  href={bug.featureContextUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-yellow-600 hover:underline break-all font-medium block bg-gray-50 p-2 rounded border"
+                >
+                  {bug.featureContextUrl}
+                </a>
+              ) : (
+                <p className="text-gray-500 bg-gray-50 p-2 rounded border">N/A</p>
+              )}
+            </div>
+            <div>
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Problem Description</h3>
+              <p className="bg-gray-50 p-2 rounded border text-gray-800">{bug.featureProblem || 'N/A'}</p>
+            </div>
+            <div>
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Alternatives Considered</h3>
+              <p className="bg-gray-50 p-2 rounded border text-gray-800">{bug.featureAlternatives || 'N/A'}</p>
+            </div>
+            <div>
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Proposed Solution</h3>
+              <p className="bg-gray-50 p-2 rounded border text-gray-800">{bug.featureSolution || 'N/A'}</p>
+            </div>
+          </>
+        )}
 
         <div>
           <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">
@@ -305,7 +353,7 @@ ${imageSection}
           </p>
         </div>
 
-        {bug.type === 'bug' && !bug.isResolved && (
+        { (bug.type === 'bug' || bug.type === 'feature') && !bug.isResolved && (
           <div className="pt-4 flex justify-end">
             <button
               onClick={handleCreateGitHubIssue}

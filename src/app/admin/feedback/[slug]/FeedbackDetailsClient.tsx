@@ -102,6 +102,7 @@ interface FeedbackItem {
   featureProblem?: string;
   featureAlternatives?: string;
   featureSolution?: string;
+  featureContextUrl?: string;
 }
 
 export default function FeedbackDetailsClient({ slug, config }: FeedbackDetailsClientProps) {

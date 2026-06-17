@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { db, storage } from '@/lib/firebase';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
-import { collection, addDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, updateDoc, Timestamp } from 'firebase/firestore';
 
 export default function FeedbackPage() {
   const [featureProblem, setFeatureProblem] = useState('');
@@ -16,7 +16,7 @@ export default function FeedbackPage() {
   const [bugType, setBugType] = useState('Website Article Errors');
   const [bugUrl, setBugUrl] = useState('');
   const [attachedImage, setAttachedImage] = useState('');
-    const [featureContextUrl, setFeatureContextUrl] = useState('');
+  const [featureContextUrl, setFeatureContextUrl] = useState('');
   const [message, setMessage] = useState('');
   const [email, setEmail] = useState('');
   const [title, setTitle] = useState('');
@@ -43,21 +43,21 @@ export default function FeedbackPage() {
     setStatus('loading');
     try {
       interface NewFeedback {
-  type: string;
-  message: string;
-  title: string;
-  email: string;
-  // Firestore server timestamp field
-  createdAt: any;
-  bugType?: string;
-  bugUrl?: string;
-  attachedImage?: string;
-  // Feature request fields
-  featureProblem?: string;
-  featureAlternatives?: string;
-  featureSolution?: string;
-  featureContextUrl?: string;
-}
+        type: string;
+        message: string;
+        title: string;
+        email: string;
+        // Firestore server timestamp field
+        createdAt: Timestamp;
+        bugType?: string;
+        bugUrl?: string;
+        attachedImage?: string;
+        // Feature request fields
+        featureProblem?: string;
+        featureAlternatives?: string;
+        featureSolution?: string;
+        featureContextUrl?: string;
+      }
 
       // Build the base payload
       const feedbackPayload: NewFeedback = {
@@ -65,24 +65,24 @@ export default function FeedbackPage() {
         message,
         title,
         email: email || 'anonymous',
-        createdAt: serverTimestamp(),
+        createdAt: serverTimestamp() as Timestamp,
       };
 
-        // Conditionally append the precise details if it's a bug report
-        if (type === 'bug') {
-          feedbackPayload.bugType = bugType;
-          feedbackPayload.bugUrl = bugUrl || 'N/A';
-          if (attachedImage) {
-            feedbackPayload.attachedImage = attachedImage;
-          }
+      // Conditionally append the precise details if it's a bug report
+      if (type === 'bug') {
+        feedbackPayload.bugType = bugType;
+        feedbackPayload.bugUrl = bugUrl || 'N/A';
+        if (attachedImage) {
+          feedbackPayload.attachedImage = attachedImage;
         }
-        // Add feature request specific fields
-        if (type === 'feature') {
-          feedbackPayload.featureProblem = featureProblem;
-          feedbackPayload.featureAlternatives = featureAlternatives;
-          feedbackPayload.featureSolution = featureSolution;
-          feedbackPayload.featureContextUrl = featureContextUrl;
-        }
+      }
+      // Add feature request specific fields
+      if (type === 'feature') {
+        feedbackPayload.featureProblem = featureProblem;
+        feedbackPayload.featureAlternatives = featureAlternatives;
+        feedbackPayload.featureSolution = featureSolution;
+        feedbackPayload.featureContextUrl = featureContextUrl;
+      }
 
       // If an image was attached, upload it to Firebase Storage first
       let imageURL = '';
@@ -139,7 +139,7 @@ export default function FeedbackPage() {
   return (
     <div className="max-w-md mx-auto my-12 p-6 bg-white rounded-lg shadow-md border">
       <h1 className="text-2xl font-bold mb-4 text-gray-800">Submit Feedback</h1>
-      
+
       {status === 'success' && (
         <div className="mb-4 p-3 bg-green-100 text-green-700 rounded-md">
           Thank you! Your feedback has been submitted successfully.
@@ -152,29 +152,29 @@ export default function FeedbackPage() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
-<div className="mb-4">
-  <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-  <input
-    type="text"
-    required
-    placeholder="title of issue"
-    value={title}
-    onChange={(e) => setTitle(e.target.value)}
-    className="w-full p-2 border rounded-md bg-gray-50 text-gray-900"
-  />
-</div>
-<div>
-  <label className="block text-sm font-medium text-gray-700 mb-1">Feedback Type</label>
-  <select 
-    value={type} 
-    onChange={(e) => setType(e.target.value)}
-    className="w-full p-2 border rounded-md bg-gray-50 text-gray-900"
-  >
-    <option value="general">General Feedback</option>
-    <option value="bug">Bug Report</option>
-    <option value="feature">Feature Request</option>
-  </select>
-</div>
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+          <input
+            type="text"
+            required
+            placeholder="title of issue"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full p-2 border rounded-md bg-gray-50 text-gray-900"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Feedback Type</label>
+          <select
+            value={type}
+            onChange={(e) => setType(e.target.value)}
+            className="w-full p-2 border rounded-md bg-gray-50 text-gray-900"
+          >
+            <option value="general">General Feedback</option>
+            <option value="bug">Bug Report</option>
+            <option value="feature">Feature Request</option>
+          </select>
+        </div>
 
         {/* --- DYNAMIC BUG FIELDS (Shown only when 'bug' is chosen) --- */}
         {type === 'bug' && (
@@ -183,8 +183,8 @@ export default function FeedbackPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 What is the type of the issue? *
               </label>
-              <select 
-                value={bugType} 
+              <select
+                value={bugType}
                 onChange={(e) => setBugType(e.target.value)}
                 className="w-full p-2 border rounded-md bg-gray-50 text-gray-900"
               >
@@ -201,8 +201,8 @@ export default function FeedbackPage() {
                 What is the URL of the issue? *
               </label>
               <p className="text-xs text-gray-500 mb-1">If the URL is irrelevant for your bug report, just put down &quot;N/A&quot;.</p>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 required
                 placeholder="https://fivehive.org/... or N/A"
                 value={bugUrl}
@@ -215,9 +215,9 @@ export default function FeedbackPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Attach Screenshot (Optional)
               </label>
-              <input 
+              <input
                 id="screenshot-input"
-                type="file" 
+                type="file"
                 accept="image/*"
                 onChange={handleImageChange}
                 className="w-full p-2 border rounded-md bg-gray-50 text-gray-900 text-sm file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-yellow-50 file:text-yellow-700 hover:file:bg-yellow-100"
@@ -284,8 +284,8 @@ export default function FeedbackPage() {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Your Email (Optional)</label>
-          <input 
-            type="email" 
+          <input
+            type="email"
             placeholder="apstudent@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -302,7 +302,7 @@ export default function FeedbackPage() {
               Please include any relevant information, such as factual errors, punctuation errors, broken links, formatting issues, appearance bugs, ... Most importantly, please provide detailed steps on how to reproduce this bug.
             </p>
           )}
-          <textarea 
+          <textarea
             required
             rows={4}
             placeholder={type === 'bug' ? "Steps to reproduce / description..." : "This could be anything about improving the website or even FiveHive in general! We appreciate any feedback you can give."}
@@ -312,8 +312,8 @@ export default function FeedbackPage() {
           />
         </div>
 
-        <button 
-          type="submit" 
+        <button
+          type="submit"
           disabled={status === 'loading'}
           className="w-full py-2 bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-400 text-white font-semibold rounded-md transition duration-200"
         >

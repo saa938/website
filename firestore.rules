@@ -101,10 +101,10 @@ service cloud.firestore {
     }
 
     match /feedback/{feedbackId} {
-      allow create: if request.resource.data.type in ['general', 'bug', 'questions']
-                    && request.resource.data.message is string
-                    && request.resource.data.message.trim() != '';
-      allow read, update, delete: if isAdmin();
+      allow read: if true;
+      allow list: if true;
+      allow get: if isMemberOrAdmin();
+      allow update, delete: if isMemberOrAdmin();
     }
   }
 }

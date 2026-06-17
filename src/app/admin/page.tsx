@@ -45,13 +45,13 @@ const Page = () => {
             <AdminPanel user={user} />
           </>
         )}
-        
-        
-          <Link href="/admin/feedback" className="hover:text-yellow-600">
-            <Button className="w-full">
+
+
+        <Link href="/admin/feedback" className="hover:text-yellow-600">
+          <Button className="w-full">
             Check Feedback & Bug Reports
-            </Button>
-          </Link>
+          </Button>
+        </Link>
         <br></br>
         <SelectCourse />
       </div>
@@ -125,11 +125,9 @@ function AdminPanel({ user }: { user: User }) {
 
   const filteredUsers = users.filter(
     (user) =>
-      user.displayName
-        .toLowerCase()
-        .includes(searchTermUsers.toLowerCase().trim()) ||
-      user.email.toLowerCase().includes(searchTermUsers.toLowerCase().trim()) ||
-      user.access.toLowerCase().includes(searchTermUsers.toLowerCase().trim()),
+      user.displayName?.toLowerCase().includes(searchTermUsers.toLowerCase().trim()) ||
+      user.email?.toLowerCase().includes(searchTermUsers.toLowerCase().trim()) ||
+      user.access?.toLowerCase().includes(searchTermUsers.toLowerCase().trim()),
   );
 
   return (

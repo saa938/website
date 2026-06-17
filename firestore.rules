@@ -2,18 +2,15 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Centralized function to check if the user is authenticated
+    // Centralized functions
     function isAuthenticated() {
       return request.auth != null;
     }
-    
-    // Centralized function to check if the user is an admin
+
     function isAdmin() {
       return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.access == "admin";
     }
 
-    // Centralized function to check if the user is a member or admin (role hierarchy)
     function isMemberOrAdmin() {
       let accessLevel = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.access;
       return isAuthenticated() && (accessLevel == "admin" || accessLevel == "member");
@@ -24,18 +21,25 @@ service cloud.firestore {
       return isAuthenticated() && (accessLevel == "admin" || accessLevel == "member" || accessLevel == "grader");
     }
 
-    // Allow read/write access to users for their own user data
+    function canSubmitFrqResponse() {
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      let userData = userDoc.data;
+      let userDocAfter = getAfter(/databases/$(database)/documents/users/$(request.auth.uid));
+      let userDataAfter = userDocAfter.data;
+      return userData.access != "banned" && (isAdmin() || (!("lastFrqResponseAt" in userData) && "lastFrqResponseAt" in userDataAfter) || (userData.lastFrqResponseAt < (request.time - duration.value(6, 'h')) && userDataAfter.lastFrqResponseAt == request.resource.data.submittedAt));
+    }
+
+    // Users collection
     match /users/{userId} {
       allow read: if isAuthenticated() && request.auth.uid == userId;
-
       allow create: if isAuthenticated() && request.auth.uid == userId && request.resource.data.access == "user";
       allow update: if isAuthenticated() && request.auth.uid == userId && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['access', 'uid']));
       allow delete: if isAuthenticated() && request.auth.uid == userId;
 
+      // Nested collections under users
       match /frqResponses/{document=**} {
         allow read: if isAuthenticated() && request.auth.uid == userId;
-
-        allow create: if isAuthenticated() && request.auth.uid == userId && (request.resource.data.keys().hasAll(['responseText', 'question', 'userId', 'submittedAt'])) && (request.resource.data.keys().hasOnly(['responseText', 'question', 'userId', 'submittedAt'])) && canSubmitFrqResponse();
+        allow create: if isAuthenticated() && request.auth.uid == userId && (request.resource.data.keys().hasAll(['responseText', 'question', 'userId', 'submittedAt'])) && request.resource.data.keys().hasOnly(['responseText', 'question', 'userId', 'submittedAt']) && canSubmitFrqResponse();
         allow update: if isGraderOrMemberOrAdmin() && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['feedback', 'grade', 'gradedAt', 'gradedBy', 'status']));
       }
 
@@ -44,34 +48,19 @@ service cloud.firestore {
       }
     }
 
-    function canSubmitFrqResponse() {
-      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
-      let userData = userDoc.data;
-
-      let userDocAfter = getAfter(/databases/$(database)/documents/users/$(request.auth.uid));
-      let userDataAfter = userDocAfter.data;
-
-      return userData.access != "banned" && (isAdmin() || (!("lastFrqResponseAt" in userData) && 
-        "lastFrqResponseAt" in userDataAfter
-      ) || (
-        userData.lastFrqResponseAt < (request.time - duration.value(6, 'h'))
-        &&
-        userDataAfter.lastFrqResponseAt == request.resource.data.submittedAt)
-      )
-    }
-
+    // Global FRQ responses
     match /{somePath=**}/frqResponses/{frqResponse} {
       allow read: if isGraderOrMemberOrAdmin();
     }
-    
+
     // Admins can read/write all user documents
     match /users/{document=**} {
       allow read, write: if isAdmin();
     }
-		
-    // Subjects and pages can be accessed by members and admins
+
+    // Subjects collection
     match /subjects/{subject} {
-    	allow read: if true;
+      allow read: if true;
       allow write: if isMemberOrAdmin();
 
       match /units/{unit} {
@@ -89,22 +78,31 @@ service cloud.firestore {
         }
       }
     }
-    
+
+    // Pages collection
     match /pages/{document=**} {
-    	allow read: if true;
+      allow read: if true;
       allow write: if isMemberOrAdmin();
     }
 
-    // Allow users to access and write to their own profiles
+    // Profiles collection
     match /profiles/{userId} {
       allow read, write: if isAuthenticated() && request.auth.uid == userId;
     }
 
+    // Feedback collection
     match /feedback/{feedbackId} {
-      allow create: if request.resource.data.type in ['general', 'bug', 'questions']
-                    && request.resource.data.message is string
-                    && request.resource.data.message.trim() != '';
-      allow read, update, delete: if isAdmin();
+      // Allow anyone (including public visitors) to view or read feedback tracking items
+      allow read: if true;
+      
+      // Enforces clean data shapes when regular users are submitting new logs
+      allow create: if request.resource.data.type in ['general', 'bug', 'feature', 'questions'] 
+                    && request.resource.data.message is string 
+                    && request.resource.data.message.trim() != ''
+                    && request.resource.data.isResolved == false;
+      
+      // Closes the temporary security gap. Only authorized admins can update status details or remove entries.
+      allow update, delete: if isAdmin();
     }
   }
 }

@@ -1,5 +1,5 @@
 import { auth, db } from "@/lib/firebase";
-import type { User as FirebaseUser } from "firebase/auth";
+import { onAuthStateChanged, type User as FirebaseUser } from "firebase/auth";
 import type { User } from "@/types/user";
 import {
   collection,
@@ -113,7 +113,8 @@ export const getUser = async (): Promise<User | null> => {
 
   // Otherwise, fetch from Firebase Auth state
   return new Promise<User | null>((resolve, reject) => {
-    const unsubscribe = auth.onAuthStateChanged(
+    const unsubscribe = onAuthStateChanged(
+      auth,
       (firebaseUser: FirebaseUser | null) => {
         if (firebaseUser === null) {
           resolve(null);
@@ -141,13 +142,9 @@ export const getUser = async (): Promise<User | null> => {
                 lastFrqResponseAt: userData.lastFrqResponseAt,
               };
 
-              // Cache in memory
               cachedUser = mappedUser;
               cacheTimestamp = Date.now();
-
-              // Save to localStorage for persistence
               saveToLocalStorage(mappedUser);
-
               resolve(mappedUser);
             } else {
               resolve(null);

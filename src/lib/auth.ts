@@ -1,6 +1,10 @@
+"use client";
+
 import { auth } from "./firebase";
 import {
   createUserWithEmailAndPassword,
+  getRedirectResult,
+  signInWithRedirect,
   signInWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
@@ -12,12 +16,14 @@ import {
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { db } from "./firebase"; // Firestore instance
 import { useRouter } from "next/navigation";
+import { useEffect, useRef } from "react";
 import { type FirebaseAuthError } from "node_modules/firebase-admin/lib/utils/error";
 import { useUser } from "@/components/hooks/UserContext";
 
 export const useAuthHandlers = () => {
   const router = useRouter();
   const { updateUser } = useUser(); // Get the updateUser function
+  const isHandlingRedirect = useRef(false);
 
   const getMessageFromCode = (code: string): string | undefined => {
     return code.split("/").pop()?.replaceAll("-", " ");
@@ -108,6 +114,11 @@ export const useAuthHandlers = () => {
     try {
       const provider = new GoogleAuthProvider();
 
+      if (process.env.NODE_ENV === "development") {
+        await signInWithRedirect(auth, provider);
+        return;
+      }
+
       const userCredential = await signInWithPopup(auth, provider);
       const user = userCredential.user;
 
@@ -138,6 +149,40 @@ export const useAuthHandlers = () => {
       };
     }
   };
+
+  useEffect(() => {
+    const finishRedirectSignIn = async () => {
+      if (isHandlingRedirect.current) return;
+
+      try {
+        isHandlingRedirect.current = true;
+        const userCredential = await getRedirectResult(auth);
+        if (!userCredential) return;
+
+        const user = userCredential.user;
+        const userDocRef = doc(db, "users", user.uid);
+        const userDoc = await getDoc(userDocRef);
+
+        if (!userDoc.exists()) {
+          await setDoc(userDocRef, {
+            uid: user.uid,
+            displayName: user.displayName,
+            email: user.email,
+            photoURL: user.photoURL,
+            access: "user",
+            createdWith: "google",
+          });
+        }
+
+        router.push("/");
+        await updateUser();
+      } finally {
+        isHandlingRedirect.current = false;
+      }
+    };
+
+    void finishRedirectSignIn();
+  }, [router, updateUser]);
 
   const forgotPassword = async (email: string) => {
     try {

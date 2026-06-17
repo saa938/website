@@ -43,16 +43,21 @@ export default function FeedbackPage() {
     setStatus('loading');
     try {
       interface NewFeedback {
-        type: string;
-        message: string;
-        title: string;
-        email: string;
-        // Firestore server timestamp field
-        createdAt: any;
-        bugType?: string;
-        bugUrl?: string;
-        attachedImage?: string;
-      }
+  type: string;
+  message: string;
+  title: string;
+  email: string;
+  // Firestore server timestamp field
+  createdAt: any;
+  bugType?: string;
+  bugUrl?: string;
+  attachedImage?: string;
+  // Feature request fields
+  featureProblem?: string;
+  featureAlternatives?: string;
+  featureSolution?: string;
+  featureContextUrl?: string;
+}
 
       // Build the base payload
       const feedbackPayload: NewFeedback = {

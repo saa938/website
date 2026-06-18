@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 
 interface FeedbackDetailsClientProps {
   slug: string;
@@ -17,73 +19,9 @@ interface FeedbackDetailsClientProps {
 
 function parseMarkdown(text: string): string {
   if (!text) return '';
-
-  // 1. Escape HTML to prevent XSS
-  let escaped = text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-
-  // 2. Inline styling (Bold, Italics, Code, Links)
-  escaped = escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-  escaped = escaped.replace(/__(.*?)__/g, '<strong>$1</strong>');
-  escaped = escaped.replace(/\*(.*?)\*/g, '<em>$1</em>');
-  escaped = escaped.replace(/_(.*?)_/g, '<em>$1</em>');
-  escaped = escaped.replace(/`(.*?)`/g, '<code class="bg-gray-100 text-red-600 px-1.5 py-0.5 rounded font-mono text-xs border">$1</code>');
-  escaped = escaped.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" class="text-yellow-600 hover:underline" target="_blank" rel="noopener noreferrer">$1</a>');
-
-  // 3. Block elements (headers, lists, paragraphs)
-  const lines = escaped.split(/\r?\n/);
-  const result: string[] = [];
-  let inList = false;
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (line === undefined) continue;
-    const trimmed = line.trim();
-
-    // Check for headers
-    const h3Match = line.match(/^### (.*)$/);
-    const h2Match = line.match(/^## (.*)$/);
-    const h1Match = line.match(/^# (.*)$/);
-
-    if (h3Match) {
-      if (inList) { result.push('</ul>'); inList = false; }
-      result.push(`<h5 class="text-sm font-bold mt-2 mb-1 text-gray-900">${h3Match[1]}</h5>`);
-    } else if (h2Match) {
-      if (inList) { result.push('</ul>'); inList = false; }
-      result.push(`<h4 class="text-base font-bold mt-3 mb-1 text-gray-900">${h2Match[1]}</h4>`);
-    } else if (h1Match) {
-      if (inList) { result.push('</ul>'); inList = false; }
-      result.push(`<h3 class="text-lg font-bold mt-4 mb-2 text-gray-900">${h1Match[1]}</h3>`);
-    } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-      const content = trimmed.substring(2);
-      if (!inList) {
-        result.push('<ul class="list-disc pl-5 my-2 space-y-1 text-gray-800">');
-        inList = true;
-      }
-      result.push(`<li>${content}</li>`);
-    } else {
-      if (inList) {
-        result.push('</ul>');
-        inList = false;
-      }
-      // Empty line or regular line
-      if (trimmed === '') {
-        result.push('<br />');
-      } else {
-        result.push(`<div>${line}</div>`);
-      }
-    }
-  }
-
-  if (inList) {
-    result.push('</ul>');
-  }
-
-  return result.join('');
+  // Convert markdown to HTML using marked and sanitize with DOMPurify
+  const rawHtml = marked.parse(text) as string;
+  return DOMPurify.sanitize(rawHtml);
 }
 
 interface FeedbackItem {

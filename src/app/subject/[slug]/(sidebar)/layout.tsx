@@ -8,7 +8,6 @@ import { type Subject } from "@/types/firestore";
 
 import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
-import Link from "next/link";
 import { useUser } from "@/components/hooks/UserContext";
 
 export default function Layout({
@@ -23,8 +22,6 @@ export default function Layout({
   const { user } = useUser();
 
   const [subject, setSubject] = useState<Subject | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchSubject = async () => {
@@ -33,14 +30,9 @@ export default function Layout({
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           setSubject(docSnap.data() as Subject);
-        } else {
-          setError("Subject not found. That's probably us, not you.");
         }
       } catch (error) {
         console.error("Error fetching subject data:", error);
-        setError("Failed to fetch subject data.");
-      } finally {
-        setLoading(false);
       }
     };
 
@@ -49,36 +41,20 @@ export default function Layout({
     });
   }, [params.slug]);
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-xl">
-        Loading...
-      </div>
-    );
-  }
-
-  if (error ?? !subject) {
-    return (
-      <div className="grid min-h-screen place-content-center text-xl">
-        <p>
-          {error}
-          <br />
-          Return to{" "}
-          <Link href="/" className="text-blue-600 hover:underline">
-            FiveHive&apos;s homepage
-          </Link>
-          .
-        </p>
-      </div>
-    );
-  }
-
+  // `{children}` must always render: this layout wraps server-rendered chapter
+  // pages, and short-circuiting on the client `loading`/`error` state (which is
+  // `loading === true` during SSR) would strip the chapter content and its
+  // page-level JSON-LD out of the static HTML. The sidebar's own subject fetch is
+  // independent of the page, so a sidebar load failure just omits the rail — the
+  // page renders (and surfaces any content errors) regardless.
   return (
     <div className="relative flex min-h-screen">
-      <SubjectSidebar
-        subject={subject}
-        preview={user?.access === "member" || user?.access === "admin"}
-      />
+      {subject ? (
+        <SubjectSidebar
+          subject={subject}
+          preview={user?.access === "member" || user?.access === "admin"}
+        />
+      ) : null}
       {children}
     </div>
   );

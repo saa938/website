@@ -1,4 +1,6 @@
 "use client";
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 import Navbar from "@/components/global/navbar";
 import Footer from "@/components/global/footer";
 import type { User } from "@/types/user";
@@ -46,6 +48,13 @@ const Page = () => {
           </>
         )}
 
+
+        <Link href="/admin/feedback" className="hover:text-yellow-600">
+          <Button className="w-full">
+            Check Feedback & Bug Reports
+          </Button>
+        </Link>
+        <br></br>
         <SelectCourse />
       </div>
 
@@ -118,11 +127,9 @@ function AdminPanel({ user }: { user: User }) {
 
   const filteredUsers = users.filter(
     (user) =>
-      user.displayName
-        .toLowerCase()
-        .includes(searchTermUsers.toLowerCase().trim()) ||
-      user.email.toLowerCase().includes(searchTermUsers.toLowerCase().trim()) ||
-      user.access.toLowerCase().includes(searchTermUsers.toLowerCase().trim()),
+      user.displayName?.toLowerCase().includes(searchTermUsers.toLowerCase().trim()) ||
+      user.email?.toLowerCase().includes(searchTermUsers.toLowerCase().trim()) ||
+      user.access?.toLowerCase().includes(searchTermUsers.toLowerCase().trim()),
   );
 
   return (

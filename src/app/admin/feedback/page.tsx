@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, query, orderBy, doc, updateDoc } from 'firebase/firestore';
 import { buttonVariants } from "@/components/ui/button";
-import {ArrowLeft, Loader2} from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { useRouter } from 'next/navigation';
 
 export default function AdminFeedbackDashboard() {
@@ -19,21 +19,21 @@ export default function AdminFeedbackDashboard() {
     e.stopPropagation();
     setArchivingIds(prev => [...prev, itemId]);
     try {
-        const docRef = doc(db, 'feedback', itemId);
-        const nextStatus = !item.isResolved;
-        await updateDoc(docRef, { isResolved: nextStatus });
+      const docRef = doc(db, 'feedback', itemId);
+      const nextStatus = !item.isResolved;
+      await updateDoc(docRef, { isResolved: nextStatus });
 
-        setFeedbackItems(prevItems =>
+      setFeedbackItems(prevItems =>
         prevItems.map(item =>
-            item.id === itemId ? { ...item, isResolved: nextStatus } : item
+          item.id === itemId ? { ...item, isResolved: nextStatus } : item
         )
-        );   
+      );
     }
     catch (error) {
-        console.error("Error archiving item:", error);
+      console.error("Error archiving item:", error);
     }
     finally {
-        setArchivingIds(prev => prev.filter(id => id !== item.id));
+      setArchivingIds(prev => prev.filter(id => id !== item.id));
     }
   };
 
@@ -55,7 +55,6 @@ export default function AdminFeedbackDashboard() {
       } catch (error) {
         console.error("Error fetching feedback:", error);
       } finally {
-        setLoading(setLoading(false) as any); // safe fallback state handling
         setLoading(false);
       }
     };
@@ -75,34 +74,32 @@ export default function AdminFeedbackDashboard() {
         Return to Admin Dashboard
       </Link>
       <h1 className="text-3xl font-bold mb-6 mt-6 text-gray-900">Feedback/Bug Reports</h1>
-      
+
       <div className="flex border-b border-gray-200 mb-6">
         <button
           onClick={() => setActiveTab('active')}
-          className={`py-2 px-4 font-medium text-sm border-b-2 transition-colors ${
-            activeTab === 'active'
-              ? 'border-yellow-600 text-yellow-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-          }`}
+          className={`py-2 px-4 font-medium text-sm border-b-2 transition-colors ${activeTab === 'active'
+            ? 'border-yellow-600 text-yellow-600'
+            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
         >
           Active Reports ({activeItems.length})
         </button>
         <button
           onClick={() => setActiveTab('resolved')}
-          className={`py-2 px-4 font-medium text-sm border-b-2 transition-colors ${
-            activeTab === 'resolved'
-              ? 'border-yellow-600 text-yellow-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-          }`}
+          className={`py-2 px-4 font-medium text-sm border-b-2 transition-colors ${activeTab === 'resolved'
+            ? 'border-yellow-600 text-yellow-600'
+            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
         >
           Resolved ({resolvedItems.length})
         </button>
       </div>
       {displayedItems.length === 0 ? (
         <p className="text-gray-500">
-            {activeTab === 'active' ? 'No active feedback submissions found.' : 'No resolved submissions found yet.'}
+          {activeTab === 'active' ? 'No active feedback submissions found.' : 'No resolved submissions found yet.'}
         </p>
-      ): (
+      ) : (
         <div className="overflow-x-auto border rounded-lg shadow-sm bg-white">
           <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
             <thead className="bg-gray-50 text-gray-700 uppercase font-semibold text-xs tracking-wider">
@@ -118,10 +115,9 @@ export default function AdminFeedbackDashboard() {
               {displayedItems.map((item) => (
                 <tr key={item.id} onClick={() => router.push(`/admin/feedback/${item.id}`)} className="hover:bg-gray-50 transition-colors">
                   <td className="p-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 rounded text-xs font-semibold uppercase ${
-                      item.type === 'bug' ? 'bg-red-100 text-red-800' : 
+                    <span className={`px-2 py-1 rounded text-xs font-semibold uppercase ${item.type === 'bug' ? 'bg-red-100 text-red-800' :
                       item.type === 'questions' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
-                    }`}>
+                      }`}>
                       {item.type}
                     </span>
                   </td>
@@ -133,33 +129,32 @@ export default function AdminFeedbackDashboard() {
                   </td>
                   <td className="p-4 text-gray-500">{item.email}</td>
                   <td className="p-4 text-gray-500 whitespace-nowrap">
-                    {item.createdAt?.seconds 
+                    {item.createdAt?.seconds
                       ? new Date(item.createdAt.seconds * 1000).toLocaleDateString()
                       : new Date().toLocaleDateString()
                     }
                   </td>
                   <td className="p-4" onClick={(e) => e.stopPropagation()}>
-                    <button 
-                        onClick={(e) => handleResolve(e, item.id, item)} 
-                        disabled={archivingIds.includes(item.id)}
-                        className={`inline-flex items-center gap-1 px-3 py-1 rounded text-xs font-medium transition-colors ${
-                        item.isResolved 
-                            ? 'bg-green-100 hover:bg-green-200 text-green-800' 
-                            : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                    <button
+                      onClick={(e) => handleResolve(e, item.id, item)}
+                      disabled={archivingIds.includes(item.id)}
+                      className={`inline-flex items-center gap-1 px-3 py-1 rounded text-xs font-medium transition-colors ${item.isResolved
+                        ? 'bg-green-100 hover:bg-green-200 text-green-800'
+                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
                         }`}
                     >
-                        {archivingIds.includes(item.id) ? (
+                      {archivingIds.includes(item.id) ? (
                         <>
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                            Updating...
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Updating...
                         </>
-                        ) : item.isResolved ? (
+                      ) : item.isResolved ? (
                         "Unresolve"
-                        ) : (
+                      ) : (
                         "Resolve"
-                        )}
+                      )}
                     </button>
-                    </td>
+                  </td>
 
                 </tr>
               ))}

@@ -53,22 +53,10 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
     await fetchUser();
   };
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-3xl">
-        Loading...
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-3xl">
-        {error}
-      </div>
-    );
-  }
-
+  // Always render children: this provider wraps the whole app, so gating on the
+  // client-only `loading`/`error` state (which is `loading === true` during SSR)
+  // strips every page's content and JSON-LD out of the static HTML. Consumers
+  // read `loading`/`user` from context and handle their own pending/auth state.
   return (
     <UserContext.Provider
       value={{ user, loading, error, setError, setLoading, updateUser }}

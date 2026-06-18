@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { storage } from '@/lib/firebase';
 import { db } from '@/lib/firebase';
-import { ref, uploadString, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 
 export default function FeedbackPage() {
@@ -17,7 +17,7 @@ export default function FeedbackPage() {
   // New bug-specific states matching your images
   const [bugType, setBugType] = useState('Website Article Errors');
   const [bugUrl, setBugUrl] = useState('');
-  const [attachedImage, setAttachedImage] = useState('');
+  const [attachedImage, setAttachedImage] = useState<File | null>(null);
   const [featureContextUrl, setFeatureContextUrl] = useState('');
   const [message, setMessage] = useState('');
   const [email, setEmail] = useState('');
@@ -27,13 +27,9 @@ export default function FeedbackPage() {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAttachedImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      setAttachedImage(file);
     } else {
-      setAttachedImage('');
+      setAttachedImage(null);
     }
   };
 
@@ -74,9 +70,6 @@ export default function FeedbackPage() {
       if (type === 'bug') {
         feedbackPayload.bugType = bugType;
         feedbackPayload.bugUrl = bugUrl || 'N/A';
-        if (attachedImage) {
-          feedbackPayload.attachedImage = attachedImage;
-        }
       }
       // Add feature request specific fields
       if (type === 'feature') {
@@ -87,13 +80,13 @@ export default function FeedbackPage() {
       }
 
       // If an image was attached, upload it to Firebase Storage first
-      let imageURL = '';
       if (attachedImage && type !== 'general') {
-        const imageRef = ref(storage, `feedbackImages/${Date.now()}`);
-        await uploadString(imageRef, attachedImage, 'data_url');
-        imageURL = await getDownloadURL(imageRef);
-        // Include the image URL in the payload
-        feedbackPayload.attachedImage = imageURL;
+        const imageRef = ref(
+          storage,
+          `feedbackImages/${Date.now()}-${attachedImage.name}`
+        );
+        await uploadBytes(imageRef, attachedImage);
+        feedbackPayload.attachedImage = await getDownloadURL(imageRef);
       }
 
       // Add feedback document with image URL (if any) included
@@ -108,6 +101,7 @@ export default function FeedbackPage() {
       setEmail('');
       setTitle('');
       setBugUrl('');
+      setAttachedImage(null);
       setFeatureProblem('');
       setFeatureAlternatives('');
       setFeatureSolution('');

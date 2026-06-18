@@ -19,8 +19,7 @@ interface FeedbackDetailsClientProps {
 
 function parseMarkdown(text: string): string {
   if (!text) return '';
-  // Convert markdown to HTML using marked and sanitize with DOMPurify
-  const rawHtml = marked.parse(text) as string;
+  const rawHtml = marked(text) as string;
   return DOMPurify.sanitize(rawHtml);
 }
 

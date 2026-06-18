@@ -36,7 +36,20 @@ export default function FeedbackPage() {
   const router = useRouter();
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim()) return;
+
+    const trimmedTitle = title.trim();
+    const trimmedMessage = message.trim();
+    const trimmedBugUrl = bugUrl.trim();
+
+    if (!trimmedTitle || !trimmedMessage) {
+      setStatus('error');
+      return;
+    }
+
+    if (type === 'bug' && !trimmedBugUrl) {
+      setStatus('error');
+      return;
+    }
 
     setStatus('loading');
     try {
@@ -60,8 +73,8 @@ export default function FeedbackPage() {
       // Build the base payload
       const feedbackPayload: NewFeedback = {
         type,
-        message,
-        title,
+        message: trimmedMessage,
+        title: trimmedTitle,
         email: email || 'anonymous',
         createdAt: serverTimestamp() as Timestamp,
       };
@@ -69,7 +82,7 @@ export default function FeedbackPage() {
       // Conditionally append the precise details if it's a bug report
       if (type === 'bug') {
         feedbackPayload.bugType = bugType;
-        feedbackPayload.bugUrl = bugUrl || 'N/A';
+        feedbackPayload.bugUrl = trimmedBugUrl;
       }
       // Add feature request specific fields
       if (type === 'feature') {

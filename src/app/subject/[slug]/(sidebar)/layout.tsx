@@ -24,8 +24,14 @@ export default function Layout({
   const [subject, setSubject] = useState<Subject | null>(null);
 
   useEffect(() => {
+    if (user === undefined) return;
+
     const fetchSubject = async () => {
       try {
+        const isAuthorized = user && (user.access === "admin" || user.access === "member" || user.access === "grader");
+        if (params.slug === "porting" && !isAuthorized) {
+          return;
+        }
         const docRef = doc(db, "subjects", params.slug);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
@@ -39,7 +45,7 @@ export default function Layout({
     fetchSubject().catch((error) => {
       console.error(error);
     });
-  }, [params.slug]);
+  }, [params.slug, user]);
 
   // `{children}` must always render: this layout wraps server-rendered chapter
   // pages, and short-circuiting on the client `loading`/`error` state (which is

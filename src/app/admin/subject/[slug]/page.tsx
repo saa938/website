@@ -20,7 +20,7 @@ import { cn, formatSlug } from "@/lib/utils";
 import short from "short-uuid";
 import type { Subject, Unit } from "@/types/firestore";
 import UnitComponent from "./_components/unit";
-import { DEFAULT_PORTING_SUBJECT, DEFAULT_PORTING_ARTICLES } from "@/lib/apPortingDefaults";
+import { DEFAULT_PORTING_SUBJECT } from "@/lib/apPortingDefaults";
 
 const translator = short(short.constants.flickrBase58);
 

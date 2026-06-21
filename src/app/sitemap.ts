@@ -20,7 +20,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority,
   }));
 
-  const subjects = await getAllSubjects();
+  const subjects = (await getAllSubjects()).filter((s) => s.slug !== "porting");
   const subjectRoutes: MetadataRoute.Sitemap = [];
 
   for (const subject of subjects) {

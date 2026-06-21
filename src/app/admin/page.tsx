@@ -16,7 +16,7 @@ import { doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 
-const apClasses = apClassesData.apClasses;
+const apClasses = [...apClassesData.apClasses, "AP Porting"];
 
 const Page = () => {
   const { user } = useUser();

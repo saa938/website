@@ -218,13 +218,11 @@ export default function Page({ params }: { params: { slug: string } }) {
 
         for (const chapter of unit.chapters) {
           const chapterRef = doc(db, "subjects", "porting", "units", unit.id, "chapters", chapter.id);
-          const defaultBlocks = DEFAULT_PORTING_ARTICLES[chapter.id];
           writeBatchObj.set(chapterRef, {
             id: chapter.id,
             createdAt: new Date(),
             author: "System Default",
             title: `${unit.id}/chapter/${chapter.id}`,
-            data: defaultBlocks,
             isPublic: chapter.isPublic ?? true,
           });
         }

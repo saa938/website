@@ -1,0 +1,1201 @@
+# Review package: a1398f7..HEAD
+
+## Commits
+3174bbc feat: introduce nested FRQ question/part model
+f8d5819 test: add unit tests for FRQ template helpers
+
+## Files changed
+ package.json                           |   3 +-
+ scripts/frq-template.test.ts           | 258 +++++++++++++++++++++++++++++++++
+ src/components/frq/editorRenderer.tsx  |  63 ++++----
+ src/components/frq/gradingRenderer.tsx |  14 +-
+ src/components/frq/testRenderer.tsx    |  12 +-
+ src/lib/frq/feedbackDocument.ts        |  28 ++--
+ src/lib/frq/template.ts                | 133 +++++++++++++++--
+ src/types/frq.ts                       |  28 +++-
+ tsconfig.json                          |   1 +
+ 9 files changed, 467 insertions(+), 73 deletions(-)
+
+## Diff
+diff --git a/package.json b/package.json
+index 88b388e..49a66e9 100644
+--- a/package.json
++++ b/package.json
+@@ -2,21 +2,22 @@
+   "name": "aproject-website",
+   "version": "0.1.0",
+   "private": true,
+   "type": "module",
+   "scripts": {
+     "build": "next build",
+     "dev": "next dev",
+     "lint": "next lint",
+     "start": "next start",
+     "emulate": "firebase emulators:start --import emulator --export-on-exit",
+-    "deploy:rules": "firebase deploy --only firestore:rules,firestore:indexes"
++    "deploy:rules": "firebase deploy --only firestore:rules,firestore:indexes",
++    "test": "node --test --experimental-strip-types \"scripts/*.test.ts\""
+   },
+   "dependencies": {
+     "@editorjs/attaches": "^1.3.0",
+     "@editorjs/code": "^2.9.0",
+     "@editorjs/delimiter": "^1.4.0",
+     "@editorjs/editorjs": "^2.30.2",
+     "@editorjs/embed": "^2.7.4",
+     "@editorjs/header": "^2.8.7",
+     "@editorjs/image": "^2.10.3",
+     "@editorjs/inline-code": "^1.5.0",
+diff --git a/scripts/frq-template.test.ts b/scripts/frq-template.test.ts
+new file mode 100644
+index 0000000..7c481ec
+--- /dev/null
++++ b/scripts/frq-template.test.ts
+@@ -0,0 +1,258 @@
++import assert from "node:assert/strict";
++import { test } from "node:test";
++import {
++  getAllParts,
++  getPartLabel,
++  getStudentFacingParts,
++  getStudentFacingQuestions,
++  getTemplatePoints,
++  hasResponseText,
++  makeId,
++  normalizeFrqTemplate,
++} from "../src/lib/frq/template.ts";
++
++test("part labels do not walk off the alphabet", () => {
++  assert.equal(getPartLabel(0), "A");
++  assert.equal(getPartLabel(25), "Z");
++  assert.equal(getPartLabel(26), "AA");
++});
++
++test("hasResponseText ignores markup-only responses", () => {
++  assert.equal(hasResponseText("<p></p>"), false);
++  assert.equal(hasResponseText("<p>&nbsp;</p>"), false);
++  assert.equal(hasResponseText("<p>an answer</p>"), true);
++  assert.equal(hasResponseText(undefined), false);
++});
++
++test("a malformed document degrades instead of throwing", () => {
++  const out = normalizeFrqTemplate(null, {
++    id: "t1",
++    subject: "calc",
++    unitId: "u1",
++  });
++
++  assert.equal(out.title, "Untitled FRQ");
++  assert.equal(out.subject, "calc");
++  assert.deepEqual(out.questions, []);
++  assert.equal(out.timeLimitMinutes, 90);
++});
++
++test("criteria points are clamped to whole non-negative numbers", () => {
++  const out = normalizeFrqTemplate(
++    {
++      questions: [
++        {
++          id: "p1",
++          criteria: [
++            { id: "c1", description: "half", points: 1.4 },
++            { id: "c2", description: "negative", points: -3 },
++            { id: "c3", description: "junk", points: "abc" },
++          ],
++        },
++      ],
++    },
++    { id: "t1", subject: "calc", unitId: "u1" },
++  );
++
++  const criteria = out.questions[0]?.parts[0]?.criteria ?? [];
++
++  assert.deepEqual(
++    criteria.map((criterion) => criterion.points),
++    [1, 0, 0],
++  );
++});
++
++test("a legacy flat document is wrapped into one question", () => {
++  const out = normalizeFrqTemplate(
++    {
++      title: "Legacy FRQ",
++      directions: "Old stimulus",
++      questions: [
++        { id: "p1", prompt: "Part one" },
++        { id: "p2", prompt: "Part two" },
++      ],
++    },
++    { id: "t1", subject: "calc", unitId: "u1" },
++  );
++
++  assert.equal(out.questions.length, 1);
++  assert.equal(out.questions[0]?.id, "legacy-question");
++  assert.equal(out.questions[0]?.stimulus, "");
++  assert.deepEqual(
++    out.questions[0]?.parts.map((part) => part.id),
++    ["p1", "p2"],
++  );
++  // Exam-wide directions are untouched, which is what makes the legacy render
++  // byte-identical to today.
++  assert.equal(out.directions, "Old stimulus");
++});
++
++test("the legacy wrap id is stable across reads", () => {
++  const raw = { questions: [{ id: "p1", prompt: "Part one" }] };
++  const identity = { id: "t1", subject: "calc", unitId: "u1" };
++
++  assert.equal(
++    normalizeFrqTemplate(raw, identity).questions[0]?.id,
++    normalizeFrqTemplate(raw, identity).questions[0]?.id,
++  );
++});
++
++test("a nested document is read as authored", () => {
++  const out = normalizeFrqTemplate(
++    {
++      title: "Nested FRQ",
++      sectionLabel: "Section I, Part B",
++      sectionSubtitle: "Short answer",
++      questions: [
++        {
++          id: "q1",
++          stimulus: "Graph A",
++          parts: [{ id: "p1", prompt: "Part one" }],
++        },
++        { id: "q2", stimulus: "Table B", parts: [] },
++      ],
++    },
++    { id: "t1", subject: "calc", unitId: "u1" },
++  );
++
++  assert.equal(out.questions.length, 2);
++  assert.equal(out.questions[0]?.stimulus, "Graph A");
++  assert.deepEqual(
++    out.questions[0]?.parts.map((part) => part.id),
++    ["p1"],
++  );
++  // An empty parts array is still the new shape, not a legacy document.
++  assert.deepEqual(out.questions[1]?.parts, []);
++  assert.equal(out.sectionLabel, "Section I, Part B");
++  assert.equal(out.sectionSubtitle, "Short answer");
++});
++
++test("parts with no stable id are dropped in both shapes", () => {
++  const identity = { id: "t1", subject: "calc", unitId: "u1" };
++
++  const legacy = normalizeFrqTemplate(
++    { questions: [{ id: "p1" }, { prompt: "no id" }] },
++    identity,
++  );
++
++  const nested = normalizeFrqTemplate(
++    { questions: [{ id: "q1", parts: [{ id: "p1" }, { prompt: "no id" }] }] },
++    identity,
++  );
++
++  assert.deepEqual(
++    legacy.questions[0]?.parts.map((part) => part.id),
++    ["p1"],
++  );
++  assert.deepEqual(
++    nested.questions[0]?.parts.map((part) => part.id),
++    ["p1"],
++  );
++});
++
++const twoQuestionTemplate = () =>
++  normalizeFrqTemplate(
++    {
++      questions: [
++        {
++          id: "q1",
++          parts: [
++            {
++              id: "p1",
++              criteria: [{ id: "c1", description: "x", points: 2 }],
++            },
++            { id: "p2", status: "legacy" },
++          ],
++        },
++        {
++          id: "q2",
++          parts: [
++            {
++              id: "p3",
++              criteria: [{ id: "c2", description: "y", points: 3 }],
++            },
++          ],
++        },
++        { id: "q3", parts: [{ id: "p4", status: "legacy" }] },
++      ],
++    },
++    { id: "t1", subject: "calc", unitId: "u1" },
++  );
++
++test("getAllParts flattens in reading order and keeps legacy parts", () => {
++  assert.deepEqual(
++    getAllParts(twoQuestionTemplate()).map((part) => part.id),
++    ["p1", "p2", "p3", "p4"],
++  );
++});
++
++test("getStudentFacingParts drops legacy parts", () => {
++  assert.deepEqual(
++    getStudentFacingParts(twoQuestionTemplate()).map((part) => part.id),
++    ["p1", "p3"],
++  );
++});
++
++test("getStudentFacingQuestions drops questions with no visible parts", () => {
++  const questions = getStudentFacingQuestions(twoQuestionTemplate());
++
++  assert.deepEqual(
++    questions.map((question) => question.id),
++    ["q1", "q2"],
++  );
++  assert.deepEqual(
++    questions[0]?.parts.map((part) => part.id),
++    ["p1"],
++  );
++});
++
++test("getTemplatePoints sums across questions", () => {
++  assert.equal(getTemplatePoints(getAllParts(twoQuestionTemplate())), 5);
++});
++
++test("makeId is prefixed and collision-safe within a millisecond", () => {
++  const ids = new Set(Array.from({ length: 500 }, () => makeId("part")));
++
++  assert.equal(ids.size, 500);
++  assert.ok([...ids].every((id) => id.startsWith("part-")));
++});
++
++test("one malformed entry does not discard other questions' parts", () => {
++  const out = normalizeFrqTemplate(
++    {
++      questions: [
++        { id: "q1", parts: [{ id: "p1", prompt: "kept" }] },
++        { id: "stray", prompt: "no parts array" },
++      ],
++    },
++    { id: "t1", subject: "calc", unitId: "u1" },
++  );
++
++  assert.deepEqual(
++    out.questions.map((question) => question.id),
++    ["q1", "stray"],
++  );
++  assert.deepEqual(
++    out.questions[0]?.parts.map((part) => part.id),
++    ["p1"],
++  );
++  assert.deepEqual(out.questions[1]?.parts, []);
++});
++
++test("a null parts field does not reclassify the whole document", () => {
++  const out = normalizeFrqTemplate(
++    {
++      questions: [
++        { id: "q1", parts: null },
++        { id: "q2", parts: [{ id: "p1", prompt: "kept" }] },
++      ],
++    },
++    { id: "t1", subject: "calc", unitId: "u1" },
++  );
++
++  assert.deepEqual(out.questions[0]?.parts, []);
++  assert.deepEqual(
++    out.questions[1]?.parts.map((part) => part.id),
++    ["p1"],
++  );
++});
+diff --git a/src/components/frq/editorRenderer.tsx b/src/components/frq/editorRenderer.tsx
+index 534b9ca..67d600b 100644
+--- a/src/components/frq/editorRenderer.tsx
++++ b/src/components/frq/editorRenderer.tsx
+@@ -19,33 +19,36 @@ import {
+ import { Input } from "@/components/ui/input";
+ import {
+   Popover,
+   PopoverContent,
+   PopoverTrigger,
+ } from "@/components/ui/popover";
+ import { Textarea } from "@/components/ui/textarea";
+ import { getFrqTemplateDocRef } from "@/lib/firestore/frqRefs";
+ import {
+   DEFAULT_TIME_LIMIT_MINUTES,
++  getAllParts,
+   getPartLabel,
+-  getQuestionPoints,
++  getPartPoints,
++  LEGACY_QUESTION_ID,
++  makeId,
+   toQuestionInput,
+ } from "@/lib/frq/template";
+ import type { QuestionFormat, QuestionInput } from "@/types/questions";
+ import { serverTimestamp, updateDoc } from "firebase/firestore";
+ import { Clock3, Info, Plus, Save, Trash2 } from "lucide-react";
+ import type {
+   FRQAnswerType,
+   FRQGradingCriterion,
+   FRQQuestionStatus,
+   FRQTemplate,
+-  FRQTemplateQuestion,
++  FRQTemplatePart,
+ } from "@/types/frq";
+ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+ 
+ interface EditorQuestion {
+   id: string;
+   questionData: QuestionFormat;
+   status: FRQQuestionStatus;
+   answerType: FRQAnswerType;
+   criteria: FRQGradingCriterion[];
+ }
+@@ -55,30 +58,20 @@ interface FRQEditorRendererProps {
+   frqTemplate: FRQTemplate | null;
+ }
+ 
+ type SaveState = "idle" | "saving" | "saved" | "error";
+ 
+ const createQuestionInput = (value = ""): QuestionInput => ({
+   value,
+   files: [],
+ });
+ 
+-/**
+- * Unique, immutable ID built from the current time plus a short random suffix.
+- * The random half is what makes it collision-safe: a timestamp alone repeats
+- * when several IDs are minted in the same millisecond.
+- */
+-const makeId = (prefix: string) =>
+-  `${prefix}-${Date.now().toString(36)}-${Math.random()
+-    .toString(36)
+-    .slice(2, 8)}`;
+-
+ const formatPoints = (points: number) =>
+   `${points} ${points === 1 ? "point" : "points"}`;
+ 
+ const createQuestionData = (
+   question = createQuestionInput(),
+ ): QuestionFormat => ({
+   question,
+   type: "frq",
+   options: [],
+   answers: [],
+@@ -89,72 +82,80 @@ const createQuestionData = (
+ 
+ const createEditorQuestion = (): EditorQuestion => ({
+   id: makeId("question"),
+   questionData: createQuestionData(),
+   status: "public",
+   answerType: "text",
+   criteria: [],
+ });
+ 
+ const createEditorQuestionFromTemplate = (
+-  templateQuestion: FRQTemplateQuestion,
++  templateQuestion: FRQTemplatePart,
+ ): EditorQuestion => ({
+   id: templateQuestion.id,
+   questionData: createQuestionData(
+     toQuestionInput(templateQuestion.prompt, templateQuestion.promptFiles),
+   ),
+   status: templateQuestion.status ?? "public",
+   answerType: templateQuestion.answerType ?? "text",
+   criteria: templateQuestion.criteria ?? [],
+ });
+ 
+ interface EditorState {
+   title: string;
+   description: QuestionInput;
+   questions: EditorQuestion[];
+   timeLimitMinutes: number;
+   isPublic: boolean;
+ }
+ 
+ const buildInitialState = (template: FRQTemplate | null): EditorState => ({
+   title: template?.title ?? "",
+-  description: toQuestionInput(
+-    template?.directions,
+-    template?.directionsFiles,
++  description: toQuestionInput(template?.directions, template?.directionsFiles),
++  questions: (template ? getAllParts(template) : []).map(
++    createEditorQuestionFromTemplate,
+   ),
+-  questions: (template?.questions ?? []).map(createEditorQuestionFromTemplate),
+   timeLimitMinutes: template?.timeLimitMinutes ?? DEFAULT_TIME_LIMIT_MINUTES,
+   isPublic: template?.isPublic === true,
+ });
+ 
+ /**
+  * The exact document body a save writes, minus the server timestamp. Unsaved
+  * state is detected by comparing this against the last persisted version rather
+  * than by watching for state updates: React StrictMode double-invokes effects
+  * in development, and the rich-text children re-emit equal values on mount, so
+  * a "something changed" listener reported unsaved work before any edit.
+  */
+ const buildTemplatePayload = (state: EditorState) => ({
+   title: state.title.trim() || "Untitled FRQ",
+   directions: state.description.value,
+   directionsFiles: state.description.files,
+   timeLimitMinutes: state.timeLimitMinutes,
+   isPublic: state.isPublic,
+-  questions: state.questions.map((question, index) => ({
+-    id: question.id,
+-    title: getPartLabel(index),
+-    prompt: question.questionData.question.value,
+-    promptFiles: question.questionData.question.files,
+-    answerType: question.answerType,
+-    status: question.status,
+-    criteria: question.criteria,
+-  })),
++  // PR 1 authors a single question; PR 2 adds the question-level UI. Wrapping
++  // here means a save from the current editor already writes the new shape.
++  questions: [
++    {
++      id: LEGACY_QUESTION_ID,
++      stimulus: "",
++      stimulusFiles: [],
++      parts: state.questions.map((question, index) => ({
++        id: question.id,
++        title: getPartLabel(index),
++        prompt: question.questionData.question.value,
++        promptFiles: question.questionData.question.files,
++        answerType: question.answerType,
++        status: question.status,
++        criteria: question.criteria,
++      })),
++    },
++  ],
+ });
+ 
+ const FRQEditorRenderer = ({
+   frqFound,
+   frqTemplate,
+ }: FRQEditorRendererProps) => {
+   const initialState = useRef(buildInitialState(frqTemplate)).current;
+ 
+   const [title, setTitle] = useState(initialState.title);
+   const [description, setDescription] = useState<QuestionInput>(
+@@ -309,21 +310,21 @@ const FRQEditorRenderer = ({
+   );
+ 
+   const questionFormats = useMemo(
+     () => questions.map((question) => question.questionData),
+     [questions],
+   );
+ 
+   const totalPoints = questions.reduce(
+     (total, question) =>
+       total +
+-      getQuestionPoints({
++      getPartPoints({
+         id: question.id,
+         title: "",
+         criteria: question.criteria,
+       }),
+     0,
+   );
+ 
+   if (!frqFound || !frqTemplate) {
+     return <div>Failed to load FRQ.</div>;
+   }
+@@ -366,25 +367,21 @@ const FRQEditorRenderer = ({
+               title={saveError ?? undefined}
+             >
+               {saveError}
+             </span>
+           )}
+ 
+           <Button
+             type="button"
+             onClick={() => void saveTemplate()}
+             disabled={saveState === "saving" || !hasUnsavedChanges}
+-            title={
+-              hasUnsavedChanges
+-                ? "Save this FRQ"
+-                : "No changes to save"
+-            }
++            title={hasUnsavedChanges ? "Save this FRQ" : "No changes to save"}
+           >
+             <Save className="mr-2 size-4" />
+             {saveState === "saving" ? "Saving..." : "Save Changes"}
+           </Button>
+         </div>
+       </header>
+ 
+       <main className="fixed inset-x-0 bottom-20 top-16 overflow-hidden bg-muted/20">
+         <div className="grid h-full grid-cols-1 overflow-y-auto lg:grid-cols-2 lg:overflow-hidden">
+           <section className="min-h-0 overflow-y-auto border-b p-6 lg:border-b-0 lg:border-r">
+@@ -485,21 +482,21 @@ const FRQEditorRenderer = ({
+                         </span>
+ 
+                         {question.status === "legacy" && (
+                           <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                             Legacy
+                           </span>
+                         )}
+                       </span>
+                       <span className="text-sm font-normal text-muted-foreground">
+                         {formatPoints(
+-                          getQuestionPoints({
++                          getPartPoints({
+                             id: question.id,
+                             title: "",
+                             criteria: question.criteria,
+                           }),
+                         )}
+                       </span>
+                     </div>
+                   </AccordionTrigger>
+ 
+                   {/* ui/accordion.tsx hardcodes opacity-70 on the content root
+diff --git a/src/components/frq/gradingRenderer.tsx b/src/components/frq/gradingRenderer.tsx
+index 580bf65..0569b2e 100644
+--- a/src/components/frq/gradingRenderer.tsx
++++ b/src/components/frq/gradingRenderer.tsx
+@@ -9,60 +9,64 @@ import { runTransaction, serverTimestamp } from "firebase/firestore";
+ import {
+   Popover,
+   PopoverContent,
+   PopoverTrigger,
+ } from "@/components/ui/popover";
+ import {
+   getGradedFrqDocRef,
+   getUngradedFrqDocRef,
+ } from "@/lib/firestore/frqRefs";
+ import {
++  getAllParts,
+   getPartLabel,
+-  getQuestionPoints,
++  getPartPoints,
+   getTemplatePoints,
+   toQuestionInput,
+ } from "@/lib/frq/template";
+ 
+ import { useUser } from "@/components/hooks/UserContext";
+ import type {
+   FRQTemplate,
+-  FRQTemplateQuestion,
++  FRQTemplatePart,
+   GradableFRQSubmission,
+ } from "@/types/frq";
+ 
+ type FRQGradingRendererProps = {
+   submission: GradableFRQSubmission | null;
+   template: FRQTemplate | null;
+ };
+ 
+ /** Points awarded per criterion, and the grader's note, for one part. */
+ type PartGrade = {
+   feedback: string;
+   criteria: Record<string, number>;
+ };
+ 
+-const createEmptyGrade = (question: FRQTemplateQuestion): PartGrade => ({
++const createEmptyGrade = (question: FRQTemplatePart): PartGrade => ({
+   feedback: "",
+   criteria: Object.fromEntries(
+     (question.criteria ?? []).map((criterion) => [criterion.id, 0]),
+   ),
+ });
+ 
+ const FRQGradingRenderer = ({
+   submission,
+   template,
+ }: FRQGradingRendererProps) => {
+   const { user } = useUser();
+ 
+   // Grading covers every part the template defines, including ones marked
+   // legacy: an older submission may still hold a response to them.
+-  const questions = useMemo(() => template?.questions ?? [], [template]);
++  const questions = useMemo(
++    () => (template ? getAllParts(template) : []),
++    [template],
++  );
+ 
+   const [currentIndex, setCurrentIndex] = useState(0);
+   const [isNavigationOpen, setIsNavigationOpen] = useState(false);
+   const [overallFeedback, setOverallFeedback] = useState("");
+   const [isSubmitting, setIsSubmitting] = useState(false);
+   const [showPrompt, setShowPrompt] = useState(true);
+   const [grades, setGrades] = useState<Record<string, PartGrade>>(() =>
+     Object.fromEntries(
+       questions.map((question) => [question.id, createEmptyGrade(question)]),
+     ),
+@@ -268,21 +272,21 @@ const FRQGradingRenderer = ({
+           <h2 className="mb-5 text-base font-semibold">
+             {template.title} | Part {getPartLabel(currentIndex)} | Grader
+             Response
+           </h2>
+ 
+           <div className="mb-3 flex h-9 items-center bg-gray-100 pr-3">
+             <span className="flex h-full w-9 items-center justify-center bg-black font-bold text-white">
+               {getPartLabel(currentIndex)}
+             </span>
+             <span className="px-3 font-semibold tabular-nums">
+-              {currentEarned}/{getQuestionPoints(currentQuestion)} Points
++              {currentEarned}/{getPartPoints(currentQuestion)} Points
+             </span>
+           </div>
+ 
+           <div className="space-y-1">
+             {currentCriteria.length === 0 ? (
+               <p className="rounded-md border border-dashed p-4 text-sm text-gray-500">
+                 This part has no grading criteria, so it is worth zero points.
+                 Add criteria in the FRQ editor.
+               </p>
+             ) : (
+diff --git a/src/components/frq/testRenderer.tsx b/src/components/frq/testRenderer.tsx
+index 404a4e0..db5d76e 100644
+--- a/src/components/frq/testRenderer.tsx
++++ b/src/components/frq/testRenderer.tsx
+@@ -1,21 +1,21 @@
+ "use client";
+ 
+ import { RenderContent } from "@/components/article-creator/custom_questions/RenderAdvancedTextbox";
+ import { useUser } from "@/components/hooks/UserContext";
+ import FRQFooter from "@/components/frq/FRQFooter";
+ import FRQResponseEditor from "@/components/frq/responseEditor";
+ import { getUngradedFrqsCollectionRef } from "@/lib/firestore/frqRefs";
+ import {
+   DEFAULT_TIME_LIMIT_MINUTES,
+   getPartLabel,
+-  getStudentFacingQuestions,
++  getStudentFacingParts,
+   hasResponseText,
+   toQuestionInput,
+ } from "@/lib/frq/template";
+ import type { FRQTemplate } from "@/types/frq";
+ import { addDoc, serverTimestamp } from "firebase/firestore";
+ import { Bookmark, LogOut } from "lucide-react";
+ import { useRouter } from "next/navigation";
+ import { useCallback, useEffect, useMemo, useState } from "react";
+ 
+ type FRQTestRendererProps = {
+@@ -35,21 +35,25 @@ const getDraftKey = (templateId: string, studentId: string) =>
+ const readDraft = (draftKey: string): Record<string, string> => {
+   try {
+     const stored = window.localStorage.getItem(draftKey);
+ 
+     if (!stored) {
+       return {};
+     }
+ 
+     const parsed: unknown = JSON.parse(stored);
+ 
+-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
++    if (
++      typeof parsed !== "object" ||
++      parsed === null ||
++      Array.isArray(parsed)
++    ) {
+       return {};
+     }
+ 
+     return Object.fromEntries(
+       Object.entries(parsed).filter(
+         (entry): entry is [string, string] => typeof entry[1] === "string",
+       ),
+     );
+   } catch {
+     // A corrupt or unreadable draft must not block the student from starting.
+@@ -58,22 +62,24 @@ const readDraft = (draftKey: string): Record<string, string> => {
+ };
+ 
+ const FRQTestRenderer = ({
+   template,
+   loading = false,
+   error = null,
+ }: FRQTestRendererProps) => {
+   const router = useRouter();
+   const { user } = useUser();
+ 
++  // PR 1 keeps the flat part list so behaviour is unchanged. PR 3 replaces this
++  // with per-question paging.
+   const questions = useMemo(
+-    () => (template ? getStudentFacingQuestions(template) : []),
++    () => (template ? getStudentFacingParts(template) : []),
+     [template],
+   );
+ 
+   const [submitting, setSubmitting] = useState(false);
+   const [hasSubmitted, setHasSubmitted] = useState(false);
+   const [currentFRQIndex, setCurrentFRQIndex] = useState(0);
+   const [responses, setResponses] = useState<Record<string, string>>({});
+   const [markedForReview, setMarkedForReview] = useState<
+     Record<number, boolean>
+   >({});
+diff --git a/src/lib/frq/feedbackDocument.ts b/src/lib/frq/feedbackDocument.ts
+index 91d4b82..c81b0d2 100644
+--- a/src/lib/frq/feedbackDocument.ts
++++ b/src/lib/frq/feedbackDocument.ts
+@@ -1,14 +1,14 @@
+ import type { FRQFeedbackDocument } from "@/components/frq/feedback/types";
+ import type { FRQTemplate, GradedFRQSubmission } from "@/types/frq";
+ import type { Timestamp } from "firebase/firestore";
+-import { toQuestionInput } from "./template";
++import { getAllParts, toQuestionInput } from "./template";
+ 
+ const formatTimestamp = (value: Timestamp | undefined) => {
+   if (!value || typeof value.toDate !== "function") {
+     return "";
+   }
+ 
+   try {
+     return value.toDate().toLocaleString();
+   } catch {
+     return "";
+@@ -32,66 +32,66 @@ export const buildFeedbackDocument = (
+     name: template.title,
+     creatorID: "",
+     mostRecentEditor: graded.graderId,
+     id: graded.sourceSubmissionId,
+     isVisible: true,
+ 
+     feedback: {
+       id: graded.sourceSubmissionId,
+       graderId: graded.graderId,
+       submittedAt: formatTimestamp(graded.gradedAt),
+-      questions: template.questions.map((question) => {
++      questions: getAllParts(template).map((part) => {
+         const partGrade = grades.find(
+-          (grade) => grade.questionId === question.id,
++          (grade) => grade.questionId === part.id,
+         );
+ 
+         return {
+-          questionId: question.id,
++          questionId: part.id,
+           feedback: partGrade?.feedback ?? "",
+           // Every criterion gets a row even when the grader left it at zero, so
+           // the student sees the whole rubric rather than only what was earned.
+-          gradingCriteria: (question.criteria ?? []).map((criterion) => ({
++          gradingCriteria: (part.criteria ?? []).map((criterion) => ({
+             criterionId: criterion.id,
+             points:
+               partGrade?.criteria.find(
+                 (score) => score.criterionId === criterion.id,
+               )?.points ?? 0,
+           })),
+         };
+       }),
+     },
+ 
+     response: {
+       id: graded.sourceSubmissionId,
+       userId: graded.studentId,
+       submittedAt: formatTimestamp(graded.submittedAt),
+-      answers: template.questions.map((question) => ({
+-        questionId: question.id,
+-        value: graded.responses?.[question.id] ?? "",
++      answers: getAllParts(template).map((part) => ({
++        questionId: part.id,
++        value: graded.responses?.[part.id] ?? "",
+       })),
+     },
+ 
+     frqs: [
+       {
+         id: template.id ?? graded.templateId,
+         name: template.title,
+         description: toQuestionInput(
+           template.directions,
+           template.directionsFiles,
+         ),
+         isVisible: true,
+-        questions: template.questions.map((question) => ({
+-          id: question.id,
+-          name: question.title,
+-          isVisible: question.status !== "legacy",
+-          prompt: toQuestionInput(question.prompt, question.promptFiles),
++        questions: getAllParts(template).map((part) => ({
++          id: part.id,
++          name: part.title,
++          isVisible: part.status !== "legacy",
++          prompt: toQuestionInput(part.prompt, part.promptFiles),
+           answerType: "text" as const,
+-          gradingCriteria: (question.criteria ?? []).map((criterion) => ({
++          gradingCriteria: (part.criteria ?? []).map((criterion) => ({
+             id: criterion.id,
+             text: criterion.description,
+             points: criterion.points,
+           })),
+         })),
+       },
+     ],
+   };
+ };
+diff --git a/src/lib/frq/template.ts b/src/lib/frq/template.ts
+index 648bbbd..5e269cb 100644
+--- a/src/lib/frq/template.ts
++++ b/src/lib/frq/template.ts
+@@ -1,15 +1,16 @@
+ import type {
+   FRQAnswerType,
+   FRQGradingCriterion,
+   FRQQuestionStatus,
+   FRQTemplate,
++  FRQTemplatePart,
+   FRQTemplateQuestion,
+ } from "@/types/frq";
+ import type { QuestionFile, QuestionInput } from "@/types/questions";
+ 
+ /** Default minutes on the clock when a template predates the time-limit field. */
+ export const DEFAULT_TIME_LIMIT_MINUTES = 90;
+ 
+ const asString = (value: unknown): string =>
+   typeof value === "string" ? value : "";
+ 
+@@ -75,24 +76,28 @@ const normalizeCriteria = (value: unknown): FRQGradingCriterion[] => {
+     ];
+   });
+ };
+ 
+ const normalizeAnswerType = (value: unknown): FRQAnswerType =>
+   value === "equation" ? "equation" : "text";
+ 
+ const normalizeStatus = (value: unknown): FRQQuestionStatus =>
+   value === "legacy" ? "legacy" : "public";
+ 
+-const normalizeQuestion = (
+-  value: unknown,
+-  index: number,
+-): FRQTemplateQuestion[] => {
++/**
++ * The id of the single question that legacy flat documents are wrapped into.
++ * A constant rather than a generated id: the wrap is re-derived on every read,
++ * so a random id would differ between two reads of the same document.
++ */
++export const LEGACY_QUESTION_ID = "legacy-question";
++
++const normalizePart = (value: unknown, index: number): FRQTemplatePart[] => {
+   const record = asRecord(value);
+ 
+   if (!record) {
+     return [];
+   }
+ 
+   const id = asString(record.id);
+ 
+   // A part with no stable id cannot be scored or matched to a response, so it
+   // is dropped rather than given a positional id that would silently rebind to
+@@ -107,74 +112,160 @@ const normalizeQuestion = (
+       title: asString(record.title) || `Part ${index + 1}`,
+       prompt: asString(record.prompt),
+       promptFiles: normalizeFiles(record.promptFiles),
+       answerType: normalizeAnswerType(record.answerType),
+       status: normalizeStatus(record.status),
+       criteria: normalizeCriteria(record.criteria),
+     },
+   ];
+ };
+ 
++const normalizeQuestion = (value: unknown): FRQTemplateQuestion[] => {
++  const record = asRecord(value);
++
++  if (!record) {
++    return [];
++  }
++
++  const id = asString(record.id);
++
++  if (!id) {
++    return [];
++  }
++
++  return [
++    {
++      id,
++      stimulus: asString(record.stimulus),
++      stimulusFiles: normalizeFiles(record.stimulusFiles),
++      parts: Array.isArray(record.parts)
++        ? record.parts.flatMap(normalizePart)
++        : [],
++    },
++  ];
++};
++
++/**
++ * Documents written before the question/part split stored a flat list of parts
++ * under `questions`. They are detected by the absence of a `parts` array — a
++ * question authored under the new shape always has one, even when empty — and
++ * wrapped into a single question so the rest of the app sees one shape.
++ *
++ * The template's `directions` was already the stimulus those documents used,
++ * and it stays exam-wide, so a wrapped document renders exactly as before.
++ */
++const normalizeQuestions = (value: unknown): FRQTemplateQuestion[] => {
++  if (!Array.isArray(value)) {
++    return [];
++  }
++
++  // A document is legacy only if EVERY entry lacks a parts array. Using `some`
++  // here let one malformed entry reclassify the whole document and silently
++  // discard the nested parts of every other question.
++  const isLegacyShape =
++    value.length > 0 &&
++    value.every((entry) => {
++      const record = asRecord(entry);
++
++      return record !== null && !Array.isArray(record.parts);
++    });
++
++  if (!isLegacyShape) {
++    return value.flatMap(normalizeQuestion);
++  }
++
++  const parts = value.flatMap(normalizePart);
++
++  return parts.length > 0
++    ? [
++        {
++          id: LEGACY_QUESTION_ID,
++          stimulus: "",
++          stimulusFiles: [],
++          parts,
++        },
++      ]
++    : [];
++};
++
+ /**
+  * Turn a raw Firestore FRQ document into a template every page can trust.
+  * `identity` supplies the values that live in the document path rather than the
+  * document body, so a template still knows where it came from when the stored
+  * `subject`/`unitId` fields are missing.
+  */
+ export const normalizeFrqTemplate = (
+   raw: unknown,
+   identity: { id: string; subject: string; unitId: string },
+ ): FRQTemplate => {
+   const record = asRecord(raw) ?? {};
+   const timeLimit = Number(record.timeLimitMinutes);
+ 
+   return {
+     id: identity.id,
+     subject: asString(record.subject) || identity.subject,
+     unitId: asString(record.unitId) || identity.unitId,
+     title: asString(record.title) || "Untitled FRQ",
+     directions: asString(record.directions),
+     directionsFiles: normalizeFiles(record.directionsFiles),
+-    questions: Array.isArray(record.questions)
+-      ? record.questions.flatMap(normalizeQuestion)
+-      : [],
++    sectionLabel: asString(record.sectionLabel),
++    sectionSubtitle: asString(record.sectionSubtitle),
++    questions: normalizeQuestions(record.questions),
+     isPublic: record.isPublic === true,
+     timeLimitMinutes:
+       Number.isFinite(timeLimit) && timeLimit >= 1
+         ? Math.floor(timeLimit)
+         : DEFAULT_TIME_LIMIT_MINUTES,
+   };
+ };
+ 
+ export const toQuestionInput = (
+   value: string | undefined,
+   files: QuestionFile[] | undefined,
+ ): QuestionInput => ({
+   value: value ?? "",
+   files: files ? [...files] : [],
+ });
+ 
++/** Every part in the document, in reading order, ignoring visibility. */
++export const getAllParts = (template: FRQTemplate): FRQTemplatePart[] =>
++  template.questions.flatMap((question) => question.parts);
++
+ /** Parts a student actually sits. Legacy parts stay readable but unassigned. */
+-export const getStudentFacingQuestions = (template: FRQTemplate) =>
+-  template.questions.filter((question) => question.status !== "legacy");
++export const getStudentFacingParts = (
++  template: FRQTemplate,
++): FRQTemplatePart[] =>
++  getAllParts(template).filter((part) => part.status !== "legacy");
++
++/**
++ * Questions a student actually sits, each carrying only its visible parts.
++ * A question whose parts are all legacy is dropped, so the test never pages to
++ * a question with nothing on it.
++ */
++export const getStudentFacingQuestions = (
++  template: FRQTemplate,
++): FRQTemplateQuestion[] =>
++  template.questions
++    .map((question) => ({
++      ...question,
++      parts: question.parts.filter((part) => part.status !== "legacy"),
++    }))
++    .filter((question) => question.parts.length > 0);
+ 
+-export const getQuestionPoints = (question: FRQTemplateQuestion) =>
+-  (question.criteria ?? []).reduce(
++export const getPartPoints = (part: FRQTemplatePart) =>
++  (part.criteria ?? []).reduce(
+     (total, criterion) => total + criterion.points,
+     0,
+   );
+ 
+-export const getTemplatePoints = (questions: FRQTemplateQuestion[]) =>
+-  questions.reduce(
+-    (total, question) => total + getQuestionPoints(question),
+-    0,
+-  );
++export const getTemplatePoints = (parts: FRQTemplatePart[]) =>
++  parts.reduce((total, part) => total + getPartPoints(part), 0);
+ 
+ /**
+  * AP-style part label: A, B, C ... then AA, AB past 26 parts rather than
+  * walking off the end of the alphabet into punctuation.
+  */
+ export const getPartLabel = (index: number) => {
+   let label = "";
+   let remaining = index;
+ 
+   do {
+@@ -184,10 +275,20 @@ export const getPartLabel = (index: number) => {
+ 
+   return label;
+ };
+ 
+ /** Strips markup so "did the student write anything" is not fooled by `<p></p>`. */
+ export const hasResponseText = (response: string | undefined) =>
+   (response ?? "")
+     .replace(/<[^>]*>/g, "")
+     .replace(/&nbsp;/g, " ")
+     .trim().length > 0;
++
++/**
++ * Unique, immutable ID built from the current time plus a short random suffix.
++ * The random half is what makes it collision-safe: a timestamp alone repeats
++ * when several IDs are minted in the same millisecond.
++ */
++export const makeId = (prefix: string) =>
++  `${prefix}-${Date.now().toString(36)}-${Math.random()
++    .toString(36)
++    .slice(2, 8)}`;
+diff --git a/src/types/frq.ts b/src/types/frq.ts
+index 025d1c8..181e102 100644
+--- a/src/types/frq.ts
++++ b/src/types/frq.ts
+@@ -15,45 +15,66 @@ export type FRQQuestionStatus = "public" | "legacy";
+  * One line of a part's rubric. Points are the single source of truth for what a
+  * part is worth: the editor, the grading page, and the student's feedback page
+  * all derive totals by summing these, so none of them can disagree.
+  */
+ export interface FRQGradingCriterion {
+   id: string;
+   description: string;
+   points: number;
+ }
+ 
+-export interface FRQTemplateQuestion {
++/** One part — the unit a student writes a single response to. */
++export interface FRQTemplatePart {
+   /** Stable template-local identifier; never derived from display order. */
+   id: string;
+   title: string;
+   /** Authored prompt text. Files referenced by it live in `promptFiles`. */
+   prompt?: string;
+   promptFiles?: QuestionFile[];
+   answerType?: FRQAnswerType;
+   status?: FRQQuestionStatus;
+   criteria?: FRQGradingCriterion[];
+ }
+ 
++/**
++ * One numbered question: its own stimulus plus the parts hanging off it.
++ * Part labels restart at A within each question, which is how AP numbers them.
++ */
++export interface FRQTemplateQuestion {
++  /** Stable template-local identifier; never derived from display order. */
++  id: string;
++  /** Stimulus shown in the left pane while this question is open. */
++  stimulus?: string;
++  stimulusFiles?: QuestionFile[];
++  parts: FRQTemplatePart[];
++}
++
+ /** An admin-authored prompt used by the digital FRQ testing experience. */
+ export interface FRQTemplate {
+   id?: string;
+   subject: string;
+   unitId: string;
+   title: string;
+   /**
+    * Stimulus and directions shown in the left-hand pane of the test. Stored as
+    * text plus a file list rather than a nested object so that documents written
+    * before the editor could save still load without migration.
+    */
+   directions: string;
+   directionsFiles?: QuestionFile[];
++  /**
++   * Section heading shown while taking the test, e.g. "Section II" or
++   * "Section I, Part B". Absent on templates authored before this was
++   * configurable, which fall back to the original hardcoded strings.
++   */
++  sectionLabel?: string;
++  sectionSubtitle?: string;
+   questions: FRQTemplateQuestion[];
+   isPublic?: boolean;
+   /** Minutes on the test clock. Absent on templates authored before timing. */
+   timeLimitMinutes?: number;
+   createdAt?: Timestamp;
+   updatedAt?: Timestamp;
+ }
+ 
+ /** A completed digital-test response awaiting staff grading. */
+ export interface GradableFRQSubmission {
+@@ -72,20 +93,25 @@ export interface FRQCriterionScore {
+   criterionId: string;
+   points: number;
+ }
+ 
+ /**
+  * A grader's verdict on a single part. Stored per part rather than as one
+  * aggregate blob so the student's feedback page can show which rubric lines
+  * were earned and what the grader said about each part.
+  */
+ export interface FRQQuestionGrade {
++  /**
++   * The id of the FRQTemplatePart this grade covers. Named `questionId`
++   * because it is a stored field in `graded-frqs` that predates the
++   * question/part split — renaming it would orphan existing documents.
++   */
+   questionId: string;
+   feedback: string;
+   criteria: FRQCriterionScore[];
+ }
+ 
+ /** The immutable grading result presented on a student's dashboard. */
+ export interface GradedFRQSubmission extends GradableFRQSubmission {
+   /** Human-readable aggregate, e.g. "4/6". Derived from `grades`. */
+   score: string;
+   /** Overall comment. Per-part comments live in `grades`. */
+diff --git a/tsconfig.json b/tsconfig.json
+index c4fe8b2..235ec3f 100644
+--- a/tsconfig.json
++++ b/tsconfig.json
+@@ -10,20 +10,21 @@
+     "isolatedModules": true,
+ 
+     /* Strictness */
+     "strict": true,
+     "noUncheckedIndexedAccess": true,
+     "checkJs": true,
+ 
+     /* Bundled projects */
+     "lib": ["dom", "dom.iterable", "ES2022"],
+     "noEmit": true,
++    "allowImportingTsExtensions": true,
+     "module": "ESNext",
+     "moduleResolution": "Bundler",
+     "jsx": "preserve",
+     "plugins": [{ "name": "next" }],
+     "incremental": true,
+ 
+     /* Path Aliases */
+     "baseUrl": ".",
+     "paths": {
+       "@/*": ["./src/*"]

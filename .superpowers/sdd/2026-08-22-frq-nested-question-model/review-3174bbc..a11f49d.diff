@@ -1,0 +1,300 @@
+# Review package: 3174bbc..a11f49d
+
+## Commits
+a11f49d fix: correct FRQ legacy-shape detection for non-object entries
+
+## Files changed
+ scripts/frq-roundtrip.test.ts | 144 ++++++++++++++++++++++++++++++++++++++++++
+ scripts/frq-template.test.ts  |  24 +++++--
+ src/lib/frq/template.ts       |  16 ++---
+ 3 files changed, 171 insertions(+), 13 deletions(-)
+
+## Diff
+diff --git a/scripts/frq-roundtrip.test.ts b/scripts/frq-roundtrip.test.ts
+new file mode 100644
+index 0000000..1f581a3
+--- /dev/null
++++ b/scripts/frq-roundtrip.test.ts
+@@ -0,0 +1,144 @@
++import assert from "node:assert/strict";
++import { test } from "node:test";
++import {
++  LEGACY_QUESTION_ID,
++  getAllParts,
++  getPartLabel,
++  normalizeFrqTemplate,
++} from "../src/lib/frq/template.ts";
++
++const identity = { id: "t1", subject: "calc", unitId: "u1" };
++
++/**
++ * Mirrors buildTemplatePayload in editorRenderer.tsx: the editor holds a flat
++ * part list and writes it back wrapped in one question. Kept in step with that
++ * function by shape, so this exercises the real save format.
++ */
++const simulateEditorSave = (
++  template: ReturnType<typeof normalizeFrqTemplate>,
++) => ({
++  title: template.title,
++  directions: template.directions,
++  directionsFiles: template.directionsFiles,
++  timeLimitMinutes: template.timeLimitMinutes,
++  isPublic: template.isPublic,
++  questions: [
++    {
++      id: LEGACY_QUESTION_ID,
++      stimulus: "",
++      stimulusFiles: [],
++      parts: getAllParts(template).map((part, index) => ({
++        id: part.id,
++        title: getPartLabel(index),
++        prompt: part.prompt,
++        promptFiles: part.promptFiles,
++        answerType: part.answerType,
++        status: part.status,
++        criteria: part.criteria,
++      })),
++    },
++  ],
++});
++
++// A realistic pre-migration document: flat parts, stimulus in `directions`,
++// mixed statuses, real criteria.
++const legacyDocument = {
++  title: "Unit 3 FRQ",
++  directions: "<p>The graph shows velocity over time.</p>",
++  directionsFiles: [{ key: "graph.png", name: "graph.png" }],
++  timeLimitMinutes: 45,
++  isPublic: true,
++  questions: [
++    {
++      id: "part-abc123",
++      title: "A",
++      prompt: "<p>Find the acceleration.</p>",
++      answerType: "text",
++      status: "public",
++      criteria: [{ id: "crit-1", description: "Correct value", points: 2 }],
++    },
++    {
++      id: "part-def456",
++      title: "B",
++      prompt: "<p>Justify your answer.</p>",
++      answerType: "equation",
++      status: "public",
++      criteria: [{ id: "crit-2", description: "Valid reasoning", points: 3 }],
++    },
++    {
++      id: "part-ghi789",
++      title: "C",
++      prompt: "<p>Retired part.</p>",
++      status: "legacy",
++      criteria: [],
++    },
++  ],
++};
++
++test("round trip: a legacy document survives load -> save -> reload", () => {
++  const loaded = normalizeFrqTemplate(legacyDocument, identity);
++  const reloaded = normalizeFrqTemplate(simulateEditorSave(loaded), identity);
++
++  const before = getAllParts(loaded);
++  const after = getAllParts(reloaded);
++
++  // The property existing submissions and grades depend on: every part id
++  // survives a save unchanged and in order.
++  assert.deepEqual(
++    after.map((part) => part.id),
++    before.map((part) => part.id),
++    "part ids must survive the round trip",
++  );
++  assert.deepEqual(
++    after.map((part) => part.prompt),
++    before.map((part) => part.prompt),
++  );
++  assert.deepEqual(
++    after.map((part) => part.status),
++    before.map((part) => part.status),
++    "legacy status must not be silently promoted to public",
++  );
++  assert.deepEqual(
++    after.map((part) => part.answerType),
++    before.map((part) => part.answerType),
++  );
++  assert.deepEqual(
++    after.flatMap((part) => (part.criteria ?? []).map((c) => c.points)),
++    before.flatMap((part) => (part.criteria ?? []).map((c) => c.points)),
++  );
++});
++
++test("round trip: exam-wide directions and files are not lost", () => {
++  const loaded = normalizeFrqTemplate(legacyDocument, identity);
++  const reloaded = normalizeFrqTemplate(simulateEditorSave(loaded), identity);
++
++  assert.equal(reloaded.directions, legacyDocument.directions);
++  assert.deepEqual(
++    reloaded.directionsFiles?.map((file) => file.key),
++    ["graph.png"],
++  );
++  assert.equal(reloaded.timeLimitMinutes, 45);
++  assert.equal(reloaded.isPublic, true);
++});
++
++test("round trip is idempotent: saving twice changes nothing", () => {
++  const once = normalizeFrqTemplate(legacyDocument, identity);
++  const twice = normalizeFrqTemplate(simulateEditorSave(once), identity);
++  const thrice = normalizeFrqTemplate(simulateEditorSave(twice), identity);
++
++  assert.deepEqual(getAllParts(thrice), getAllParts(twice));
++  assert.equal(twice.questions.length, 1);
++  assert.equal(thrice.questions.length, 1);
++});
++
++test("a saved document is read back as nested, not re-wrapped as legacy", () => {
++  const loaded = normalizeFrqTemplate(legacyDocument, identity);
++  const saved = simulateEditorSave(loaded);
++  const reloaded = normalizeFrqTemplate(saved, identity);
++
++  // If the save were read as the legacy shape again, the single question would
++  // be treated as one flat part and its 3 parts would collapse to nothing.
++  assert.equal(reloaded.questions.length, 1);
++  assert.equal(reloaded.questions[0]?.id, LEGACY_QUESTION_ID);
++  assert.equal(reloaded.questions[0]?.parts.length, 3);
++});
+diff --git a/scripts/frq-template.test.ts b/scripts/frq-template.test.ts
+index 7c481ec..7b71a6f 100644
+--- a/scripts/frq-template.test.ts
++++ b/scripts/frq-template.test.ts
+@@ -1,13 +1,14 @@
+ import assert from "node:assert/strict";
+ import { test } from "node:test";
+ import {
++  LEGACY_QUESTION_ID,
+   getAllParts,
+   getPartLabel,
+   getStudentFacingParts,
+   getStudentFacingQuestions,
+   getTemplatePoints,
+   hasResponseText,
+   makeId,
+   normalizeFrqTemplate,
+ } from "../src/lib/frq/template.ts";
+ 
+@@ -84,24 +85,22 @@ test("a legacy flat document is wrapped into one question", () => {
+   );
+   // Exam-wide directions are untouched, which is what makes the legacy render
+   // byte-identical to today.
+   assert.equal(out.directions, "Old stimulus");
+ });
+ 
+ test("the legacy wrap id is stable across reads", () => {
+   const raw = { questions: [{ id: "p1", prompt: "Part one" }] };
+   const identity = { id: "t1", subject: "calc", unitId: "u1" };
+ 
+-  assert.equal(
+-    normalizeFrqTemplate(raw, identity).questions[0]?.id,
+-    normalizeFrqTemplate(raw, identity).questions[0]?.id,
+-  );
++  assert.equal(normalizeFrqTemplate(raw, identity).questions[0]?.id, LEGACY_QUESTION_ID);
++  assert.equal(normalizeFrqTemplate(raw, identity).questions[0]?.id, LEGACY_QUESTION_ID);
+ });
+ 
+ test("a nested document is read as authored", () => {
+   const out = normalizeFrqTemplate(
+     {
+       title: "Nested FRQ",
+       sectionLabel: "Section I, Part B",
+       sectionSubtitle: "Short answer",
+       questions: [
+         {
+@@ -249,10 +248,27 @@ test("a null parts field does not reclassify the whole document", () => {
+     },
+     { id: "t1", subject: "calc", unitId: "u1" },
+   );
+ 
+   assert.deepEqual(out.questions[0]?.parts, []);
+   assert.deepEqual(
+     out.questions[1]?.parts.map((part) => part.id),
+     ["p1"],
+   );
+ });
++
++test("a legacy document with a stray non-object entry keeps its parts", () => {
++  const out = normalizeFrqTemplate(
++    {
++      directions: "Old stimulus",
++      questions: [null, { id: "p1", prompt: "kept" }, "junk"],
++    },
++    { id: "t1", subject: "calc", unitId: "u1" },
++  );
++
++  assert.equal(out.questions.length, 1);
++  assert.equal(out.questions[0]?.id, LEGACY_QUESTION_ID);
++  assert.deepEqual(
++    out.questions[0]?.parts.map((part) => part.id),
++    ["p1"],
++  );
++});
+diff --git a/src/lib/frq/template.ts b/src/lib/frq/template.ts
+index 5e269cb..13e92ad 100644
+--- a/src/lib/frq/template.ts
++++ b/src/lib/frq/template.ts
+@@ -77,21 +77,22 @@ const normalizeCriteria = (value: unknown): FRQGradingCriterion[] => {
+   });
+ };
+ 
+ const normalizeAnswerType = (value: unknown): FRQAnswerType =>
+   value === "equation" ? "equation" : "text";
+ 
+ const normalizeStatus = (value: unknown): FRQQuestionStatus =>
+   value === "legacy" ? "legacy" : "public";
+ 
+ /**
+- * The id of the single question that legacy flat documents are wrapped into.
++ * The id of the single question that legacy flat documents are wrapped into,
++ * and also minted for every new save (including brand-new FRQs never legacy).
+  * A constant rather than a generated id: the wrap is re-derived on every read,
+  * so a random id would differ between two reads of the same document.
+  */
+ export const LEGACY_QUESTION_ID = "legacy-question";
+ 
+ const normalizePart = (value: unknown, index: number): FRQTemplatePart[] => {
+   const record = asRecord(value);
+ 
+   if (!record) {
+     return [];
+@@ -151,30 +152,27 @@ const normalizeQuestion = (value: unknown): FRQTemplateQuestion[] => {
+  * wrapped into a single question so the rest of the app sees one shape.
+  *
+  * The template's `directions` was already the stimulus those documents used,
+  * and it stays exam-wide, so a wrapped document renders exactly as before.
+  */
+ const normalizeQuestions = (value: unknown): FRQTemplateQuestion[] => {
+   if (!Array.isArray(value)) {
+     return [];
+   }
+ 
+-  // A document is legacy only if EVERY entry lacks a parts array. Using `some`
+-  // here let one malformed entry reclassify the whole document and silently
+-  // discard the nested parts of every other question.
++  // Legacy iff NO entry carries a parts array. Stated negatively on purpose:
++  // an `every` over "lacks parts" also fails on non-object entries, which
++  // misclassified a legacy document containing a stray null as nested and
++  // silently discarded all of its parts.
+   const isLegacyShape =
+     value.length > 0 &&
+-    value.every((entry) => {
+-      const record = asRecord(entry);
+-
+-      return record !== null && !Array.isArray(record.parts);
+-    });
++    !value.some((entry) => Array.isArray(asRecord(entry)?.parts));
+ 
+   if (!isLegacyShape) {
+     return value.flatMap(normalizeQuestion);
+   }
+ 
+   const parts = value.flatMap(normalizePart);
+ 
+   return parts.length > 0
+     ? [
+         {

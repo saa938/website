@@ -1,0 +1,130 @@
+# Review package: a1398f7..f8d5819
+
+## Commits
+f8d5819 test: add unit tests for FRQ template helpers
+
+## Files changed
+ package.json                 |  3 ++-
+ scripts/frq-template.test.ts | 58 ++++++++++++++++++++++++++++++++++++++++++++
+ tsconfig.json                |  1 +
+ 3 files changed, 61 insertions(+), 1 deletion(-)
+
+## Diff
+diff --git a/package.json b/package.json
+index 88b388e..49a66e9 100644
+--- a/package.json
++++ b/package.json
+@@ -2,21 +2,22 @@
+   "name": "aproject-website",
+   "version": "0.1.0",
+   "private": true,
+   "type": "module",
+   "scripts": {
+     "build": "next build",
+     "dev": "next dev",
+     "lint": "next lint",
+     "start": "next start",
+     "emulate": "firebase emulators:start --import emulator --export-on-exit",
+-    "deploy:rules": "firebase deploy --only firestore:rules,firestore:indexes"
++    "deploy:rules": "firebase deploy --only firestore:rules,firestore:indexes",
++    "test": "node --test --experimental-strip-types \"scripts/*.test.ts\""
+   },
+   "dependencies": {
+     "@editorjs/attaches": "^1.3.0",
+     "@editorjs/code": "^2.9.0",
+     "@editorjs/delimiter": "^1.4.0",
+     "@editorjs/editorjs": "^2.30.2",
+     "@editorjs/embed": "^2.7.4",
+     "@editorjs/header": "^2.8.7",
+     "@editorjs/image": "^2.10.3",
+     "@editorjs/inline-code": "^1.5.0",
+diff --git a/scripts/frq-template.test.ts b/scripts/frq-template.test.ts
+new file mode 100644
+index 0000000..36850d3
+--- /dev/null
++++ b/scripts/frq-template.test.ts
+@@ -0,0 +1,58 @@
++import assert from "node:assert/strict";
++import { test } from "node:test";
++import {
++  getPartLabel,
++  hasResponseText,
++  normalizeFrqTemplate,
++} from "../src/lib/frq/template.ts";
++
++test("part labels do not walk off the alphabet", () => {
++  assert.equal(getPartLabel(0), "A");
++  assert.equal(getPartLabel(25), "Z");
++  assert.equal(getPartLabel(26), "AA");
++});
++
++test("hasResponseText ignores markup-only responses", () => {
++  assert.equal(hasResponseText("<p></p>"), false);
++  assert.equal(hasResponseText("<p>&nbsp;</p>"), false);
++  assert.equal(hasResponseText("<p>an answer</p>"), true);
++  assert.equal(hasResponseText(undefined), false);
++});
++
++test("a malformed document degrades instead of throwing", () => {
++  const out = normalizeFrqTemplate(null, {
++    id: "t1",
++    subject: "calc",
++    unitId: "u1",
++  });
++
++  assert.equal(out.title, "Untitled FRQ");
++  assert.equal(out.subject, "calc");
++  assert.deepEqual(out.questions, []);
++  assert.equal(out.timeLimitMinutes, 90);
++});
++
++test("criteria points are clamped to whole non-negative numbers", () => {
++  const out = normalizeFrqTemplate(
++    {
++      questions: [
++        {
++          id: "p1",
++          criteria: [
++            { id: "c1", description: "half", points: 1.4 },
++            { id: "c2", description: "negative", points: -3 },
++            { id: "c3", description: "junk", points: "abc" },
++          ],
++        },
++      ],
++    },
++    { id: "t1", subject: "calc", unitId: "u1" },
++  );
++
++  const criteria = out.questions[0]?.criteria ?? [];
++
++  assert.deepEqual(
++    criteria.map((criterion) => criterion.points),
++    [1, 0, 0],
++  );
++});
+diff --git a/tsconfig.json b/tsconfig.json
+index c4fe8b2..235ec3f 100644
+--- a/tsconfig.json
++++ b/tsconfig.json
+@@ -10,20 +10,21 @@
+     "isolatedModules": true,
+ 
+     /* Strictness */
+     "strict": true,
+     "noUncheckedIndexedAccess": true,
+     "checkJs": true,
+ 
+     /* Bundled projects */
+     "lib": ["dom", "dom.iterable", "ES2022"],
+     "noEmit": true,
++    "allowImportingTsExtensions": true,
+     "module": "ESNext",
+     "moduleResolution": "Bundler",
+     "jsx": "preserve",
+     "plugins": [{ "name": "next" }],
+     "incremental": true,
+ 
+     /* Path Aliases */
+     "baseUrl": ".",
+     "paths": {
+       "@/*": ["./src/*"]
